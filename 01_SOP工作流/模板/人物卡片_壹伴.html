@@ -1,41 +1,44 @@
 <!--
-  人物卡片模板 · 壹伴可直接导入
+  人物卡片模板 · 壹伴可直接导入（v3 · 2026-10-12 更新）
+  本次改动：
+    1. display:flex → table 布局（公众号 ProseMirror 白名单过滤 flex，原版布局会被破坏）
+    2. 头像 84×108 → 128×160（原尺寸在 iPhone 上偏小，128px 约占卡片宽 1/3，视觉更合理）
+    3. 左侧容器 132px → 160px，padding 加大，头像呼吸感更好
   用法：
     1. 把【】里的占位内容替换成事实台账里已验证的字段
-    2. 肖像图替换 portrait.jpg 的相对路径
-    3. 复制 <section class="guest-card"> ... </section> 整块，粘贴到壹伴编辑器
+    2. 肖像图替换 portrait.jpg 的相对路径（建议 720×960 3:4 竖版）
+    3. 复制整块，粘贴到壹伴编辑器
   规则：每行必须附信源；官方 bio 查不到就整行删掉，不留空、不靠印象补
 -->
 
 <section style="border:0.5px solid #e8e4dc;border-radius:12px;overflow:hidden;margin:28px 0;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif;">
 
   <!-- 顶部金色细线 -->
-  <div style="height:3px;background:#c8a96e;"></div>
+  <section style="height:3px;background:#c8a96e;font-size:0;line-height:0;"></section>
 
-  <div style="display:flex;align-items:stretch;">
+  <!-- table 左右布局（白名单内，替代 flex） -->
+  <table style="width:100%;border-collapse:collapse;">
+    <tr>
 
-    <!-- 左侧：肖像（3:4 竖版，建议 720×960） -->
-    <div style="width:132px;flex-shrink:0;background:#f5f2ec;padding:16px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-      <img src="portrait.jpg" alt="【受访者姓名】"
-           style="width:84px;height:108px;object-fit:cover;border-radius:6px;display:block;">
-    </div>
+      <!-- 左侧：肖像区（128×160，3:4 竖版，iPhone 上约占卡片宽 1/3） -->
+      <td style="width:160px;vertical-align:middle;text-align:center;background:#f5f2ec;padding:22px 10px;">
+        <img src="portrait.jpg" alt="【受访者姓名】" style="width:128px;height:160px;display:block;margin:0 auto;border-radius:6px;">
+      </td>
 
-    <!-- 右侧：信息区 -->
-    <div style="flex:1;padding:16px 18px 18px 18px;min-width:0;">
+      <!-- 右侧：信息区 -->
+      <td style="padding:18px 16px;vertical-align:top;">
 
-      <!-- 姓名 -->
-      <p style="margin:0 0 2px 0;font-size:17px;font-weight:600;color:#1a1a1a;line-height:1.4;">
-        【中文姓名】<span style="font-size:12px;font-weight:400;color:#a9a49a;margin-left:6px;">【English Name】</span>
-      </p>
+        <!-- 姓名 -->
+        <p style="margin:0 0 2px 0;font-size:17px;font-weight:600;color:#1a1a1a;line-height:1.4;">
+          【中文姓名】<span style="font-size:12px;font-weight:400;color:#a9a49a;margin-left:6px;">【English Name】</span>
+        </p>
 
-      <!-- 现任职位（逐字照抄官方 title） -->
-      <p style="margin:0 0 16px 0;font-size:13px;color:#a3762a;line-height:1.6;">
-        【现任职位】，【所属机构】
-      </p>
+        <!-- 现任职位（逐字照抄官方 title） -->
+        <p style="margin:0 0 14px 0;font-size:13px;color:#a3762a;line-height:1.6;">
+          【现任职位】，【所属机构】
+        </p>
 
-      <!-- 三行结构化履历 -->
-      <div style="margin:0 0 14px 0;">
-
+        <!-- 三行结构化履历 -->
         <div style="margin:0 0 12px 0;">
           <p style="margin:0 0 3px 0;font-size:11px;color:#9a958a;letter-spacing:0.06em;">教育经历</p>
           <p style="margin:0;font-size:14px;color:#333;line-height:1.75;">【学校 + 专业 + 学位】</p>
@@ -51,23 +54,22 @@
           <p style="margin:0;font-size:14px;color:#333;line-height:1.75;">【代表性成果 / 项目 / 观点输出】</p>
         </div>
 
-      </div>
-
-    </div>
-  </div>
+      </td>
+    </tr>
+  </table>
 
   <!-- 底部说明行 -->
-  <div style="border-top:0.5px solid #eee8dc;padding:10px 18px;background:#faf8f5;">
+  <section style="border-top:0.5px solid #eee8dc;padding:10px 18px;background:#faf8f5;">
     <p style="margin:0;font-size:11px;color:#a9a49a;line-height:1.6;">
       ▲ 履历信息来源于公开资料，图片截自原视频
     </p>
-  </div>
+  </section>
 
 </section>
 
 
 <!--
-  ============ 排版规范（v2）============
+  ============ 排版规范（v3）============
 
   主色调     #c8a96e（顶部细线）
   信息区底   #faf8f5
@@ -76,9 +78,9 @@
   职位色     #a3762a
   卡片边框   #e8e4dc，0.5px，圆角 12px
 
-  尺寸规格
-  卡片左右   132px : flex 1
-  肖像       84×108px（3:4 竖版，圆角 6px）
+  尺寸规格（v3 放大头像）
+  卡片左右   160px : 剩余（table td 布局）
+  肖像       128×160px（3:4 竖版，圆角 6px，建议源图 720×960）
   姓名       17px / 600
   职位       13px
   标签       11px
@@ -88,4 +90,5 @@
   1. 肖像必须是视频截帧，不得用 AI 生成
   2. 每行履历必须附信源，查不到整行删掉
   3. 禁止头衔堆叠（会员、获奖一律不写）
+  4. 布局用 table，禁止 display:flex（公众号会过滤 flex）
 -->
