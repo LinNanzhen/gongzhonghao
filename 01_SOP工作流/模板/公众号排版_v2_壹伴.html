@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公众号排版模板 v2 · 壹伴可直接导入</title>
+<!--
+  用法：把【】占位内容替换掉，整块复制 body 内的内容粘贴到壹伴
+  相比 v1 新增：人物卡片 / 反方观点块 / 金句高亮 / 结尾钩子展开
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.8; color: #333; background: #fff; max-width: 680px; margin: 0 auto; padding: 20px;
+    }
+    h1 { font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 24px; line-height: 1.4; }
+    .intro { color: #666; font-size: 15px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+
+    /* 人物卡片 v2 */
+    .guest-card { border: 0.5px solid #e8e4dc; border-radius: 12px; overflow: hidden; margin: 28px 0; }
+    .guest-card .topline { height: 3px; background: #c8a96e; }
+    .guest-card .body { display: flex; align-items: stretch; }
+    .guest-card .photo { width: 132px; flex-shrink: 0; background: #f5f2ec; padding: 16px 10px;
+        display: flex; align-items: center; justify-content: center; }
+    .guest-card .photo img { width: 84px; height: 108px; object-fit: cover; border-radius: 6px; display: block; }
+    .guest-card .info { flex: 1; padding: 16px 18px 18px 18px; min-width: 0; }
+    .guest-card .name { font-size: 17px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; line-height: 1.4; }
+    .guest-card .name span { font-size: 12px; font-weight: 400; color: #a9a49a; margin-left: 6px; }
+    .guest-card .title { font-size: 13px; color: #a3762a; margin-bottom: 16px; line-height: 1.6; }
+    .guest-card .row { margin-bottom: 12px; }
+    .guest-card .row:last-child { margin-bottom: 0; }
+    .guest-card .label { font-size: 11px; color: #9a958a; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .guest-card .value { font-size: 14px; color: #333; line-height: 1.75; }
+    .guest-card .foot { border-top: 0.5px solid #eee8dc; padding: 10px 18px; background: #faf8f5;
+        font-size: 11px; color: #a9a49a; line-height: 1.6; }
+
+    h2 { font-size: 18px; font-weight: 600; color: #1a1a1a; margin: 40px 0 16px 0;
+        padding-left: 12px; border-left: 3px solid #c8a96e; }
+    p { font-size: 15px; margin-bottom: 16px; color: #444; }
+
+    /* 金句高亮 v2：不用渐变，改用下划线标记，更接近真人手记感 */
+    .highlight { background: #fff3cd; padding: 0 2px; font-weight: 500; }
+    .quote-line { border-left: 3px solid #d8d2c6; padding: 4px 0 4px 16px; margin: 20px 0;
+        font-size: 15px; color: #555; }
+
+    /* 反方观点块 v2 */
+    .counter { background: #faf8f5; border: 0.5px solid #e8e4dc; border-radius: 8px;
+        padding: 16px 18px; margin: 20px 0; font-size: 14px; color: #555; }
+    .counter .label { font-size: 11px; color: #a3762a; letter-spacing: 0.06em; margin-bottom: 6px; }
+
+    blockquote { background: #f8f9fa; padding: 15px 20px; margin: 20px 0;
+        border-left: 3px solid #c8a96e; font-size: 15px; color: #555; }
+    ul { margin: 15px 0 15px 20px; font-size: 15px; color: #444; }
+    li { margin-bottom: 8px; }
+    .short-line { font-size: 15px; margin: 20px 0; font-weight: 500; color: #1a1a1a; }
+
+    /* 配图 */
+    figure { margin: 24px 0; }
+    figure img { width: 100%; display: block; border-radius: 6px; }
+    figure figcaption { font-size: 12px; color: #a9a49a; margin-top: 8px; line-height: 1.6; text-align: center; }
+
+    .ending { margin-top: 40px; padding-top: 25px; border-top: 1px solid #eee; }
+    .ending p { color: #666; font-size: 14px; }
+    .source { margin-top: 20px; padding: 15px; background: #f8f9fa; font-size: 13px; color: #888; }
+    .source a { color: #c8a96e; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<h1>【标题：一句话给出反常判断或核心结论】</h1>
+
+<!-- 开头：第一句就给事件/反常点，不铺垫 -->
+<p class="intro">【第一句：具体触发点 + 反差点。参考"这两天车圈有且仅有一件大事"】<br><br>
+【第二句：你的预期落差】<br><br>
+【第三句：时长 + 你做了什么功课 + 为什么值得读】</p>
+
+
+<!-- ========== 人物卡片 ==========
+     规则：肖像必须是视频截帧，不得 AI 生成
+           每行履历须附信源，查不到整行删掉
+           禁止头衔堆叠（会员、获奖一律不写）  -->
+<div class="guest-card">
+    <div class="topline"></div>
+    <div class="body">
+        <div class="photo">
+            <img src="portrait.jpg" alt="【受访者姓名】">
+        </div>
+        <div class="info">
+            <div class="name">【中文姓名】<span>【English Name】</span></div>
+            <div class="title">【现任职位】，【所属机构】</div>
+
+            <div class="row">
+                <div class="label">教育经历</div>
+                <div class="value">【学校 + 专业 + 学位】</div>
+            </div>
+            <div class="row">
+                <div class="label">工作经历</div>
+                <div class="value">【机构序列，按时间倒序】</div>
+            </div>
+            <div class="row">
+                <div class="label">代表项目</div>
+                <div class="value">【代表性成果 / 项目 / 观点输出】</div>
+            </div>
+        </div>
+    </div>
+    <div class="foot">▲ 履历信息来源于公开资料，图片截自原视频</div>
+</div>
+
+
+<h2>【小标题：反差点式，把标题当成一个有信息量的判断】</h2>
+
+<p>【她的原话 / 核心观点。保留对话感，不要转成单方陈述】</p>
+
+<p>【你的解读：用"我们/大伙/咱"，不用"我听到这…"。写读者的共同处境】</p>
+
+<!-- 金句高亮：读者可能想截图的那句 -->
+<p><span class="highlight">【原话金句，必须能对上逐字稿时间戳】</span></p>
+
+<!-- 数据佐证：越具体越可信 -->
+<ul>
+    <li><strong>【数据1】</strong>——【说明】</li>
+    <li><strong>【数据2】</strong>——【说明】</li>
+</ul>
+
+<!-- 🔴 反方观点块 v2 新增：每节至少一处，不可省略 -->
+<div class="counter">
+    <div class="label">我不同意的地方</div>
+    【你的疑问、反面证据、或这个判断的适用边界。参考差评君逐条拆"可控断裂派/设计缺陷派"的做法】
+</div>
+
+<!-- 配图：字幕定位抽帧，时间点要对准上面的金句 -->
+<figure>
+    <img src="frame_1.jpg" alt="">
+    <figcaption>▲ 截自原视频 14:23，对应「【金句】」</figcaption>
+</figure>
+
+
+<h2>【小标题2】</h2>
+<p>【…】</p>
+<div class="counter">
+    <div class="label">我不同意的地方</div>
+    【…】
+</div>
+
+
+<!-- 引用块：她的原话，适合较长的表述 -->
+<blockquote>【较长的原话】</blockquote>
+
+
+<!-- 结尾 -->
+<div class="ending">
+    <!-- 开头留了钩子，这里必须展开，给可操作的下一步 -->
+    <p><strong>【开头留的钩子，展开成普通人能做的具体建议】</strong></p>
+    <p>【最后说两个我自己记下来的点：第一…… 第二……】</p>
+    <p>【收在具体判断上，不升华，不写"人的价值在重新定义"】</p>
+</div>
+
+<div class="source">
+    <strong>内容来源：</strong>【节目名称 / UP主】<br>
+    <strong>原视频：</strong><a href="【链接】">【链接】</a><br>
+    <strong>嘉宾身份：</strong>【职位，来源链接】<br>
+    <strong>图片说明：</strong>本文图片均截自原视频并标注时间点
+</div>
+
+</body>
+</html>
