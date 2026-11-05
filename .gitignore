@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 流水线临时产物
+流水线/.tmp/
+*.tmp
+
+# 大体积媒体不入库（案例目录本身也不属于本仓库，此处为兜底）
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.m4a
