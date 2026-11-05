@@ -18,11 +18,16 @@ gongzhonghao/
 │   ├── 历史版本/                              # v7 发布复盘前快照
 │   ├── _备份/                                 # v5 原始版
 │   └── 模板/                                  # 6 类可复用资产，见下
-└── 流水线/                                    # Python 自动化
-    ├── gzh_pipeline.py                        # 正文 → 双 HTML → 质检 → 三档渲染
-    ├── gzh_subtitle.py                        # 字幕长图（3:4）
-    ├── subtitle_skill/native_subtitle_stitch.py
-    └── README_使用说明.md
+├── 流水线/                                    # Python 自动化
+│   ├── gzh_pipeline.py                        # 正文 → 双 HTML → 质检 → 三档渲染
+│   ├── gzh_subtitle.py                        # 字幕长图（3:4）
+│   ├── subtitle_skill/native_subtitle_stitch.py
+│   └── README_使用说明.md
+└── orchestrator/                              # 多智能体事件循环（SOP v9）
+    ├── loop.py                                # tick / submit / status / approve / resume
+    ├── agents/                                # 九类智能体
+    ├── providers/                             # LLM 适配层（stub 默认）
+    └── README.md
 ```
 
 **案例不在本仓库内**，位于工作区根目录 `NN_XX_案例/`（不进 git）。
@@ -71,6 +76,19 @@ gongzhonghao/
 没跑过编辑器保存与手机预览，只能标"本地完成，编辑器待验证"。
 
 ---
+
+## 🤖 编排层（SOP v9）
+
+v8 管「写得对不对」，v9 管「能不能无人值守地跑」。九个 agent 串成状态机，
+只在选题与发布两处停下等人：
+
+```bash
+python3 orchestrator/loop.py submit --url "https://www.youtube.com/watch?v=xxxx" --title "某人访谈"
+python3 orchestrator/loop.py tick --scan
+python3 orchestrator/loop.py approve --run-id <id> --gate topic
+```
+
+细节见 [`orchestrator/README.md`](orchestrator/README.md) 与 [`SOP_v9_多智能体编排.md`](01_SOP工作流/SOP_v9_多智能体编排.md)。
 
 ## 🧰 模板
 

@@ -220,10 +220,10 @@ on:
 
 | # | 事项 | 状态 |
 |---|---|---|
-| 1 | 编排器（事件源 / 状态机 / tick） | 本次实现 |
-| 2 | 九类 agent 桩 + LLM 适配器接口 | 本次实现 |
-| 3 | GitHub Actions workflow | 本次实现 |
-| 4 | 接真实 LLM（替换 `providers/stub.py`） | 待办 |
+| 1 | 编排器（事件源 / 状态机 / tick） | ✅ 已实现（`orchestrator/`） |
+| 2 | 九类 agent 桩 + LLM 适配器接口 | ✅ 已实现（`agents/`、`providers/`） |
+| 3 | GitHub Actions workflow | ✅ 已实现（`.github/workflows/gzh-loop.yml`） |
+| 4 | 接真实 LLM（替换 `providers/stub.py`） | 待办：接口已留，只需注册新 Provider |
 | 5 | RSS 源列表填实际频道 | 待办（`sources.json` 留空不报错） |
 | 6 | 发布审批走 Issue 标签 | 待办 |
 | 7 | 用 5 篇历史稿回归编排（v6/v7/v8 当作已知答案） | 待办 |
