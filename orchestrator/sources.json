@@ -1,0 +1,4 @@
+{
+  "_comment": "源列表：feeds 里填 RSS/Atom 地址。留空则只靠 inbox 投递，不会报错。YouTube 频道 RSS 形如 https://www.youtube.com/feeds/videos.xml?channel_id=UCxxxx",
+  "feeds": []
+}

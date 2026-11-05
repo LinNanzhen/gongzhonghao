@@ -1,0 +1,86 @@
+name: gzh-loop
+
+# 多智能体事件循环（SOP v9）：
+#   - 定时：每 2 小时扫描 sources.json 与 inbox/
+#   - 手动：Actions 页面 Run workflow
+#   - 外部：repository_dispatch（type = gzh-inbox）
+#
+# 设计约束：
+#   * 只推进，不发布。到达 awaiting_publish 就停，等人 approve。
+#   * 状态与产物都提交回仓库，git log 即审计日志。
+#   * 任何一步 FAIL 都保留现场，不静默跳过。
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      scan:
+        description: "扫描 sources.json（关闭则只处理 inbox）"
+        type: boolean
+        default: true
+      max_runs:
+        description: "本轮最多推进几个 run"
+        default: "3"
+  repository_dispatch:
+    types: [gzh-inbox]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gzh-loop
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      # 案例目录落在仓库内，云端才能提交回写；本地运行时默认是仓库父目录
+      GZH_BASE: ${{ github.workspace }}/cases
+      PYTHONIOENCODING: utf-8
+      MAX_RUNS: ${{ github.event.inputs.max_runs || '3' }}
+
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 单元测试（快，失败即停）
+        run: python3 -m unittest orchestrator.test_state -q
+
+      - name: 推进一轮
+        run: |
+          mkdir -p "$GZH_BASE"
+          SCAN_FLAG="--scan"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.scan }}" = "false" ]; then
+            SCAN_FLAG=""
+          fi
+          python3 orchestrator/loop.py tick --max-runs "$MAX_RUNS" $SCAN_FLAG \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: 当前状态
+        if: always()
+        run: |
+          echo '### run 状态' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python3 orchestrator/loop.py status >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 提交回写
+        run: |
+          git config user.name  "gzh-loop[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "无变更，跳过提交"
+          else
+            git commit -m "chore(loop): tick 回写 $(date -u +%FT%TZ)"
+            git push
+          fi
