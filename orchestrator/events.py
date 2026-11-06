@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .state import Source, normalize_url, run_id_for, run_id_for_text
+from .transcript import FEISHU_LINE, SRT_TIME
 
 URL_RE = re.compile(r"https?://[^\s<>\"')]+")
 
@@ -71,7 +72,11 @@ def parse_inbox_file(path: Path) -> Source | None:
             url = m.group(0)
             break
     if not url:
-        # 没有链接：本地素材（录音转写等），把首行当标题
+        # 没有链接：本地素材。若内容本身是转写稿，用文件名当标题，
+        # 否则（首行 @说话人 00:01 之类的）会取出一串没意义的东西。
+        if _looks_like_transcript(text):
+            return Source(kind="local", url="", title=path.stem,
+                          notes=f"本地转写：{path.name}")
         title = next((ln.lstrip("# ").strip() for ln in lines if ln and not ln.startswith("#")),
                      path.stem)
         return Source(kind="local", url="", title=title,
@@ -85,6 +90,12 @@ def parse_inbox_file(path: Path) -> Source | None:
             title = ln.strip("# ").strip()
             break
     return Source(kind="inbox", url=normalize_url(url), title=title, notes=notes)
+
+
+def _looks_like_transcript(text: str) -> bool:
+    """有说话人时间戳或 SRT 时间轴，就当作转写稿本身。"""
+    return bool(FEISHU_LINE.search(text) or SRT_TIME.search(text)
+                or text.lstrip().startswith("WEBVTT"))
 
 
 def scan_inbox(inbox_dir: Path) -> list[Event]:
@@ -120,8 +131,16 @@ def scan_inbox(inbox_dir: Path) -> list[Event]:
             ))
             continue
 
-        attachments = [p for p in group if p != primary
-                       and p.suffix.lower() in TRANSCRIPT_EXT]
+        try:
+            content = primary.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            content = ""
+        if _looks_like_transcript(content):
+            # 主文件本身就是转写稿：它自己也要作为附件复制进案例
+            attachments = [p for p in group if p.suffix.lower() in TRANSCRIPT_EXT]
+        else:
+            attachments = [p for p in group if p != primary
+                           and p.suffix.lower() in TRANSCRIPT_EXT]
         src = parse_inbox_file(primary)
         if src is None:
             continue
