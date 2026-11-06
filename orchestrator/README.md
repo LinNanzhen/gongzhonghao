@@ -126,7 +126,7 @@ agent 代码一行不用改。
 | 发现素材 | 自动 | RSS 扫描 + inbox 投递 |
 | 补标题 | 自动 | oEmbed 取标题与频道 |
 | 选题 | **自动**（`auto_approve.topic: true`） | scout 用模型填满五项后直接进入转写 |
-| 转写 | 半自动 | 见下：飞书导出，或带 cookies 的 yt-dlp |
+| 转写 | **自动**（配好凭证后） | 投飞书妙记链接即调 API 拉转写；YouTube 用 yt-dlp + cookies |
 | 台账/研究/写作/体检/排版/质检 | 自动 | 打回超 3 次转 blocked |
 | 发布 | **人工** | 停在 `awaiting_publish`，`auto_approve.publish` 默认关闭 |
 
@@ -138,6 +138,32 @@ gh secret set YT_COOKIES --repo <owner>/<repo> < cookies.txt
 ```
 
 没有 cookies 时不会静默失败：`transcriber` 落 `blocked`，`转写/yt-dlp.log` 里有 yt-dlp 的原始报错。
+
+## 飞书妙记：投链接就够
+
+有自建应用凭证后，往 inbox 投**妙记链接**即可，不用手工导出：
+
+```bash
+export FEISHU_APP_ID=cli_xxx
+export FEISHU_APP_SECRET=xxx
+
+echo "https://xxx.feishu.cn/minutes/obcnq3b9jl72l83w4f149w9c" > orchestrator/inbox/某期.md
+python3 orchestrator/loop.py tick --scan
+```
+
+`transcriber` 会调 [`导出妙记文字记录`](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/minutes-v1/minute-transcript/get.md)：
+
+```
+GET /open-apis/minutes/v1/minutes/{minute_token}/transcript
+    ?need_speaker=true&need_timestamp=true&file_format=srt
+```
+
+拿到 SRT 后自动转 `transcript.json`，时间戳与说话人都在。
+
+**开通步骤**：飞书开放平台 → 创建企业自建应用 → 开权限 `minutes:minutes.transcript:export`
+→ 拿 App ID / App Secret → 妙记「权限设置」里给该应用导出权限。
+
+失败不会静默：错误写进 `转写/feishu.log`，`blocked` 的原因里会直接说明是缺凭证、无权限还是转写未完成。
 
 ## 转写稿怎么进来
 

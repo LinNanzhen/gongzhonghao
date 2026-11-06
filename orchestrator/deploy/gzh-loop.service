@@ -1,0 +1,19 @@
+[Unit]
+Description=gzh content pipeline (multi-agent tick)
+Documentation=file:/opt/gongzhonghao/orchestrator/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gzh
+WorkingDirectory=/opt/gongzhonghao
+EnvironmentFile=-/etc/gzh/env
+ExecStart=/usr/bin/python3 orchestrator/loop.py tick --scan --max-runs 3
+TimeoutStartSec=1800
+Nice=10
+
+# 只读文件系统之外的部分，按需放宽
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true

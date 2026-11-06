@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import os
+
 from .base import Agent, Context, Result, guest_of
 from ..transcript import load_any, to_payload, FEISHU_LINE
 
@@ -49,6 +51,7 @@ class Transcriber(Agent):
     stage = "triaged"
 
     fetch_reason: str = ""
+    feishu_reason: str = ""
 
     def run(self, ctx: Context) -> Result:
         src = ctx.run.source
@@ -61,13 +64,17 @@ class Transcriber(Agent):
             # 本地已有的飞书/SRT/文本稿优先
             transcript = self._convert_if_possible(ctx, tr_dir) or transcript
         if not transcript.exists():
+            # 飞书妙记链接：直接调 API 拉转写
+            transcript = self._try_feishu(ctx, tr_dir) or transcript
+        if not transcript.exists():
             # 再尝试自动抓 YouTube 字幕（需 policy 开启且装了 yt-dlp）
             transcript = self._try_fetch(ctx, tr_dir) or transcript
             if not transcript.exists():
                 return Result.blocked(
                     f"缺少转写底稿：{tr_dir}；把飞书妙记导出的逐字稿（.md/.txt/.srt）"
                     f"放进该目录即可，会自动转成 transcript.json。"
-                    f"自动抓取状态：{self.fetch_reason or '未启用'}"
+                    f"飞书：{self.feishu_reason or '不适用'}；"
+                    f"YouTube：{self.fetch_reason or '未启用'}"
                 )
 
         card = ctx.case_dir / f"素材卡_{date.today().isoformat()}_{guest}.md"
@@ -77,6 +84,39 @@ class Transcriber(Agent):
         return Result.ok(f"素材卡：{card.name}（片段表待人工/模型填充）",
                          artifacts={"material_card": str(card), "transcript": str(transcript)},
                          to="transcribed")
+
+    def _try_feishu(self, ctx: Context, tr_dir):
+        """source 是飞书妙记链接时，用开放平台接口拉转写。"""
+        self.feishu_reason = ""
+        if ctx.dry_run:
+            return None
+        from ..feishu import FeishuError, fetch_minutes_transcript, is_minutes_url, minute_token
+        url = ctx.run.source.url
+        if not (is_minutes_url(url) and minute_token(url)):
+            return None
+        if not (os.environ.get("FEISHU_APP_ID") and os.environ.get("FEISHU_APP_SECRET")):
+            self.feishu_reason = "缺少飞书应用凭证（FEISHU_APP_ID / FEISHU_APP_SECRET）"
+            return None
+
+        path = fetch_minutes_transcript(url, tr_dir)
+        if not path:
+            log = tr_dir / "feishu.log"
+            detail = log.read_text(encoding="utf-8")[:160] if log.exists() else ""
+            self.feishu_reason = f"飞书接口未返回转写：{detail}"
+            return None
+        try:
+            segs = load_any(path)
+        except Exception:  # noqa: BLE001
+            self.feishu_reason = "飞书转写解析失败"
+            return None
+        if not segs:
+            self.feishu_reason = "飞书转写为空"
+            return None
+        out = tr_dir / "transcript.json"
+        import json as _json
+        self.write(ctx, out, _json.dumps(to_payload(segs, source=path.name),
+                                         ensure_ascii=False, indent=2))
+        return out
 
     def _try_fetch(self, ctx: Context, tr_dir):
         """policy.auto_transcribe 开启时，尝试抓 YouTube 字幕。"""

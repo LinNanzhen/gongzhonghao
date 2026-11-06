@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gzh.loop</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>orchestrator/loop.py</string>
+    <string>tick</string>
+    <string>--scan</string>
+    <string>--max-runs</string>
+    <string>3</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/lnz/Desktop/公众号/gongzhonghao</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>GZH_LLM_API_KEY</key>
+    <string>REPLACE_ME</string>
+    <key>FEISHU_APP_ID</key>
+    <string>REPLACE_ME</string>
+    <key>FEISHU_APP_SECRET</key>
+    <string>REPLACE_ME</string>
+    <key>YT_COOKIES_FILE</key>
+    <string>/Users/lnz/cookies.txt</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/gzh-loop.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/gzh-loop.err</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
