@@ -103,6 +103,9 @@ python3 orchestrator/loop.py tick --provider deepseek
 | 400 / 401 / 403 | 立即失败，不重试（重试只会撞更多次） |
 | 响应无 choices / 空内容 / 非 JSON | `ProviderError`，该 run 记 `error`，停在原阶段 |
 
+**推理模型注意**：`deepseek-flash` 之类会先输出 `reasoning_content`，它算在 `max_tokens` 里。
+预算太小会得到 `finish_reason=length` + 空 content——writer 因此用 8000，ping 用 64。
+
 **换厂商**只改环境变量；**换协议**才需要新增 `Provider` 子类并注册到 `get_provider` 的 `ALIASES`，
 agent 代码一行不用改。
 

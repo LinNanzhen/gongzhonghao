@@ -69,7 +69,7 @@ class Writer(Agent):
             system="你是深度报道作者。按 SOP v8 §05 写正文：章节 01/02 编号，标题是判断不是话题，"
                    "作者判断单独标注，不用【】占位符。",
             prompt=f"选题卡、素材卡、台账、研究笔记都在 {ctx.case_dir}。请写出正文骨架。",
-            max_tokens=3000,
+            max_tokens=8000,   # 推理模型含 reasoning，正文需要余量
         )
         ctx.save_llm("writer", llm)
 
