@@ -95,11 +95,18 @@ jobs:
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
 
-      - name: 安装转写工具
+      - name: 安装转写工具（best-effort）
+        # 装不上不该拖垮整轮：yt-dlp 拿不到就落 blocked，由前面已配的转写兜底
         run: |
-          python3 -m pip install -q --upgrade yt-dlp
-          command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
-          yt-dlp --version
+          timeout 90 python3 -m pip install -q --upgrade yt-dlp \
+            || echo "::warning::yt-dlp 安装超时，本轮跳过自动抓字幕"
+          if command -v ffmpeg >/dev/null; then
+            echo "ffmpeg 已存在"
+          else
+            timeout 120 sudo apt-get install -y -qq ffmpeg \
+              || echo "::warning::ffmpeg 安装失败，字幕转换可能不可用"
+          fi
+          timeout 15 yt-dlp --version || echo "yt-dlp 不可用"
 
       - name: 模型自检（可选）
         if: inputs.smoke == true
