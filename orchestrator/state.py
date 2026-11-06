@@ -76,8 +76,9 @@ STAGE_AGENT: dict[str, str] = {
 REWIND: dict[str, set[str]] = {
     "drafted": {"researched"},     # critic 不过 → 回 writer 重写
     "critiqued": {"researched"},   # 内容层面不过 → 回 writer
-    "composed": {"critiqued"},     # 门禁 FAIL → 回 composer 重排
-    "qc_passed": {"critiqued"},
+    "composed": {"critiqued", "researched"},
+    "qc_passed": {"critiqued", "researched"},
+    "awaiting_publish": {"researched"},   # 改完提示词，人工要求重写
 }
 
 MAX_REWORK = 3

@@ -1,6 +1,6 @@
 {
   "run_id": "34b48bc803e9",
-  "stage": "awaiting_publish",
+  "stage": "researched",
   "status": "active",
   "source": {
     "kind": "local",
@@ -114,11 +114,18 @@
       "to": "awaiting_publish",
       "agent": "gatekeeper",
       "note": "门禁已过，停在人工发布闸门"
+    },
+    {
+      "at": "2026-11-06T20:54:47+08:00",
+      "from": "awaiting_publish",
+      "to": "researched",
+      "agent": "human",
+      "note": "rework: 人工回退：要求直接引用原话"
     }
   ],
   "rework": {
-    "count": 2,
-    "last_reason": "加粗句不足 2 处，主线无法被扫读复述"
+    "count": 3,
+    "last_reason": "人工回退：要求直接引用原话"
   },
   "gates": {
     "topic": true,
@@ -127,5 +134,5 @@
   "errors": 0,
   "error": null,
   "created_at": "2026-11-06T12:28:38+00:00",
-  "updated_at": "2026-11-06T12:50:31+00:00"
+  "updated_at": "2026-11-06T20:54:47+08:00"
 }

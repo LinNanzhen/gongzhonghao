@@ -98,6 +98,15 @@ class Critic(Agent):
         # 加粗是编辑预算（SOP v8 §05），不是主线成立的证据，只提示
         if len(bolds) < 2:
             human_warns.append(f"加粗句只有 {len(bolds)} 处（建议 2 处以上，便于扫读）")
+        # 直接引语密度：全是转述时，正文会变成作者在替受访者说话
+        quotes = re.findall(r"[“\"]([^”\"]{6,})[”\"]", text)
+        per_k = len(quotes) / max(1.0, len(text) / 1000)
+        if per_k < 2:
+            human_warns.append(f"直接引语偏少（{len(quotes)} 处 / {len(text)} 字，建议每千字 2 处以上）")
+        long_paras = [p for p in text.split("\n")
+                      if len(p.strip()) > 150 and not p.lstrip().startswith(("#", ">", "|", "-"))]
+        if long_paras:
+            human_warns.append(f"{len(long_paras)} 段超过 150 字（建议 60—90 字一段）")
 
         rows = "\n".join(
             f"| {n}｜{t[:18]} | {'✅' if n else '❓'} | 待人工 | 待人工 | ✅ | 待定 |"
