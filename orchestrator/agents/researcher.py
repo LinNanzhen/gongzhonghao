@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .base import Agent, Context, Result, guest_of
+from .base import Agent, Context, Result, gather_context, guest_of
 
 NOTES = """# 研究笔记 · {guest}
 
@@ -51,7 +51,12 @@ class Researcher(Agent):
         llm = ctx.provider.complete(
             task="researcher.notes",
             system="你是研究助理。只补证据与对照，不给观点文章。",
-            prompt=f"选题卡与台账在 {ctx.case_dir}；请列出还需要核实的三件事。",
+            prompt=(
+                "以下是一篇人物访谈报道的选题卡与事实台账节选：\n\n"
+                + (gather_context(ctx.case_dir, ("选题卡", "事实台账"), per_file=2500, total=6000)
+                   or "（暂无）")
+                + "\n\n请列出三个最需要外部核实的问题，每条一句话，不要写正文。"
+            ),
             max_tokens=2000,
         )
         ctx.save_llm("researcher", llm)

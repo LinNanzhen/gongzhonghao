@@ -66,6 +66,28 @@ class Result:
         return cls(status="skip", note=note)
 
 
+def gather_context(case_dir: Path, prefixes: tuple[str, ...] = (),
+                   per_file: int = 4000, total: int = 12000) -> str:
+    """把案例里的 md 读成文本塞进 prompt。
+
+    模型通过 API 调用，**没有文件系统**——只写"文件在 X 目录"它读不到。
+    """
+    parts: list[str] = []
+    for prefix in prefixes:
+        for path in sorted(case_dir.glob(f"{prefix}*.md")):
+            try:
+                body = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if len(body) > per_file:
+                body = body[:per_file] + f"\n…（已截断，原文 {len(body)} 字）"
+            parts.append(f"### {path.name}\n{body}")
+    text = "\n\n".join(parts)
+    if len(text) > total:
+        text = text[:total] + f"\n…（上下文已截断，共 {len(text)} 字）"
+    return text
+
+
 def guest_of(case_dir: Path) -> str:
     """从 `NN_嘉宾_案例` 里取出嘉宾名。"""
     m = re.match(r"^\d{2,3}_(.+?)(?:_案例)?$", case_dir.name)

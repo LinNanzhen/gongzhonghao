@@ -1,6 +1,6 @@
 {
   "run_id": "34b48bc803e9",
-  "stage": "drafted",
+  "stage": "researched",
   "status": "active",
   "source": {
     "kind": "local",
@@ -54,11 +54,18 @@
       "to": "drafted",
       "agent": "writer",
       "note": "正文：苏姿丰回归_人味版.md"
+    },
+    {
+      "at": "2026-11-06T20:32:06+08:00",
+      "from": "drafted",
+      "to": "researched",
+      "agent": "human",
+      "note": "rework: 人工回退：修正 prompt：之前模型读不到素材"
     }
   ],
   "rework": {
-    "count": 0,
-    "last_reason": ""
+    "count": 1,
+    "last_reason": "人工回退：修正 prompt：之前模型读不到素材"
   },
   "gates": {
     "topic": true,
@@ -67,5 +74,5 @@
   "errors": 0,
   "error": null,
   "created_at": "2026-11-06T12:28:38+00:00",
-  "updated_at": "2026-11-06T12:29:17+00:00"
+  "updated_at": "2026-11-06T20:32:06+08:00"
 }

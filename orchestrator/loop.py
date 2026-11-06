@@ -352,6 +352,25 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_rewind(args) -> int:
+    """人工回退到某个阶段重跑（改完提示词后重试）。"""
+    store = RunStore(HERE / "runs")
+    run = store.get(args.run_id)
+    if run is None:
+        print(f"找不到 run：{args.run_id}")
+        return 2
+    try:
+        run.rewind(args.to, "human", f"人工回退：{args.note or ''}")
+    except IllegalTransition as exc:
+        print(str(exc))
+        return 2
+    run.status = "active"
+    run.error = None
+    store.save(run, f"rewind\t{args.to}\t{args.note or ''}")
+    print(f"已回退：{run.run_id} → {run.stage}（下次 tick 重跑）")
+    return 0
+
+
 def cmd_ping(args) -> int:
     """连通性自检：调一次模型，确认 key / 端点 / 模型名都对。"""
     pkw = {k: getattr(args, k) for k in ("model", "base_url") if getattr(args, k, "")}
@@ -455,6 +474,12 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("status", help="查看 run")
     st.add_argument("--json", action="store_true")
     st.set_defaults(func=cmd_status)
+
+    rw = sub.add_parser("rewind", help="人工回退到某个阶段")
+    rw.add_argument("--run-id", required=True)
+    rw.add_argument("--to", required=True)
+    rw.add_argument("--note", default="")
+    rw.set_defaults(func=cmd_rewind)
 
     pg = sub.add_parser("ping", help="模型连通性自检")
     pg.add_argument("--provider", default="stub")

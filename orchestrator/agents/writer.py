@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .base import Agent, Context, Result, guest_of
+from .base import Agent, Context, Result, gather_context, guest_of
 
 SKELETON = """# 待定标题：把主线压成一句可复述的判断
 
@@ -77,7 +77,15 @@ class Writer(Agent):
                 "7. 不用赋能、抓手、闭环、底层逻辑、颗粒度、势能、破局这类词。\n"
                 "8. 不用【】占位符，不写「首先/其次/最后」的编号式行文。"
             ),
-            prompt=f"选题卡、素材卡、台账、研究笔记都在 {ctx.case_dir}。请写出正文骨架。",
+            prompt=(
+                "以下是一篇人物访谈报道的全部素材（选题卡、素材卡、事实台账、研究笔记的节选）。\n"
+                "请只使用这些材料写正文；材料里没有的事实、数字、原话一律不要编。\n"
+                "如果某处确实缺材料，就写得概括一些，不要标注「待核」之类的占位。\n\n"
+                + (gather_context(ctx.case_dir,
+                                  ("选题卡", "素材卡", "事实台账", "研究笔记"))
+                   or "（素材目录为空）")
+                + "\n\n现在写出完整正文。"
+            ),
             max_tokens=8000,   # 推理模型含 reasoning，正文需要余量
         )
         ctx.save_llm("writer", llm)
