@@ -87,7 +87,7 @@ python3 -m unittest orchestrator.test_state -v
 
 ```bash
 export GZH_LLM_API_KEY=sk-...                          # 必填
-export GZH_LLM_MODEL=deepseek-chat                     # 可选，默认 deepseek-chat
+export GZH_LLM_MODEL=deepseek-flash                    # 可选，默认 deepseek-flash
 export GZH_LLM_BASE_URL=https://api.deepseek.com/v1     # 可选
 
 python3 orchestrator/loop.py tick --provider deepseek

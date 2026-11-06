@@ -61,11 +61,11 @@ class TestHappyPath(unittest.TestCase):
 
     def test_request_shape(self):
         with patch("urllib.request.urlopen", return_value=resp(OK)) as m:
-            provider(model="deepseek-chat").complete(
+            provider(model="explicit-model").complete(
                 task="t", system="sys", prompt="usr", max_tokens=100, temperature=0.2)
         req = m.call_args.args[0]
         body = json.loads(req.data.decode("utf-8"))
-        self.assertEqual(body["model"], "deepseek-chat")
+        self.assertEqual(body["model"], "explicit-model")
         self.assertEqual(body["messages"][0], {"role": "system", "content": "sys"})
         self.assertEqual(body["messages"][1], {"role": "user", "content": "usr"})
         self.assertEqual(body["max_tokens"], 100)
@@ -155,7 +155,7 @@ class TestFactory(unittest.TestCase):
 
     def test_presets_per_vendor(self):
         cases = {
-            "deepseek": ("https://api.deepseek.com/v1", "deepseek-chat"),
+            "deepseek": ("https://api.deepseek.com/v1", "deepseek-flash"),
             "kimi": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
             "qwen": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
             "openai": ("https://api.openai.com/v1", "gpt-4o-mini"),

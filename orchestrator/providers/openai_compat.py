@@ -7,7 +7,7 @@
 配置（环境变量，key 不入库）：
     GZH_LLM_BASE_URL  默认 https://api.deepseek.com/v1
     GZH_LLM_API_KEY   必填
-    GZH_LLM_MODEL     默认 deepseek-chat
+    GZH_LLM_MODEL     默认 deepseek-flash
 
 重试策略（对齐 SOP v9 §07）：
     网络错误 / 429 / 5xx → 指数退避重试（默认 2 次）
@@ -28,7 +28,7 @@ RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 
 # 厂商预设：显式参数 > 环境变量 > 预设 > 通用默认
 PRESETS: dict[str, tuple[str, str]] = {
-    "deepseek": ("https://api.deepseek.com/v1", "deepseek-chat"),
+    "deepseek": ("https://api.deepseek.com/v1", "deepseek-flash"),
     "kimi": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
     "moonshot": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
     "qwen": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
@@ -40,7 +40,7 @@ PRESETS: dict[str, tuple[str, str]] = {
 class OpenAICompatProvider(Provider):
     name = "openai-compat"
     DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
-    DEFAULT_MODEL = "deepseek-chat"
+    DEFAULT_MODEL = "deepseek-flash"
 
     def __init__(self, *, base_url: str | None = None, api_key: str | None = None,
                  model: str | None = None, preset: str | None = None,
