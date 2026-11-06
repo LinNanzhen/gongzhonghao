@@ -241,9 +241,9 @@ def cmd_tick(args) -> int:
         return 2
 
     policy = load_policy()
-    collected = list(ev.scan_inbox(HERE / "inbox"))
+    collected = [] if args.skip_ingest else list(ev.scan_inbox(HERE / "inbox"))
     warnings: list[str] = []
-    if args.scan:
+    if args.scan and not args.skip_ingest:
         found, warnings = ev.scan_sources(HERE / "sources.json", days=args.days)
         collected += found
 
@@ -431,6 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--render", action="store_true", help="排版时跑三档 Chrome 渲染")
     t.add_argument("--dry-run", action="store_true", help="只打印计划，不写文件")
     t.add_argument("--run-id", default="", help="只推进指定 run（自检/排障用）")
+    t.add_argument("--skip-ingest", action="store_true", help="不扫描 inbox/sources（自检用）")
     t.add_argument("--provider", default="stub",
                    help="LLM provider：stub / openai-compat（别名 deepseek、kimi、qwen）")
     t.add_argument("--model", default="", help="模型名；默认取 GZH_LLM_MODEL")
