@@ -263,9 +263,11 @@ class RunStore:
 def normalize_url(url: str) -> str:
     """去掉追踪参数与尾斜杠；youtu.be 归一为 watch?v=。"""
     u = (url or "").strip()
-    m = re.match(r"https?://youtu\.be/([\w-]{6,})", u)
-    if m:
-        return f"https://www.youtube.com/watch?v={m.group(1)}"
+    # 任意 YouTube 形态统一成 watch?v=ID（youtu.be、/live/、/shorts/、/embed/、?v=）
+    if "youtube.com" in u or "youtu.be" in u:
+        m = re.search(r"(?:youtu\.be/|[?&]v=|/(?:live|shorts|embed|v)/)([\w-]{6,})", u)
+        if m:
+            return f"https://www.youtube.com/watch?v={m.group(1)}"
     u = re.sub(r"[?&](utm_[^=&]*|si|feature|t)=[^&#]*", "", u)
     u = re.sub(r"[?&]+$", "", u)
     if u.endswith("/"):

@@ -95,6 +95,14 @@ class TestIds(unittest.TestCase):
         self.assertEqual(normalize_url("https://youtu.be/abc123DEF"),
                          "https://www.youtube.com/watch?v=abc123DEF")
 
+    def test_normalize_youtube_live_and_shorts(self):
+        expected = "https://www.youtube.com/watch?v=1mu3x97th90"
+        for u in ("https://www.youtube.com/live/1mu3x97th90?si=abc",
+                  "https://www.youtube.com/shorts/1mu3x97th90",
+                  "https://m.youtube.com/watch?v=1mu3x97th90",
+                  "https://youtu.be/1mu3x97th90"):
+            self.assertEqual(normalize_url(u), expected, u)
+
     def test_strip_tracking(self):
         a = normalize_url("https://example.com/v/1?utm_source=x&si=y")
         self.assertEqual(a, "https://example.com/v/1")
