@@ -8,9 +8,41 @@
 """
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 from .base import Agent, Context, Result, gather_context, guest_of
+
+def transcript_excerpt(case_dir: Path, limit: int = 9000) -> str:
+    """转写原文节选，带时间戳，供模型引用。"""
+    tr_dir = case_dir / "转写"
+    text = ""
+    js = tr_dir / "transcript.json"
+    if js.exists():
+        try:
+            data = json.loads(js.read_text(encoding="utf-8"))
+            lines = []
+            for seg in (data.get("segments") or []):
+                total = int(seg.get("start", 0))
+                mm, ss = divmod(total, 60)
+                spk = seg.get("speaker") or ""
+                lines.append(f"[{mm:02d}:{ss:02d}]{(' ' + spk) if spk else ''} {seg.get('text', '')}")
+            text = "\n".join(lines)
+        except (ValueError, OSError):
+            text = ""
+    if not text and tr_dir.exists():
+        for cand in sorted(tr_dir.glob("*")):
+            if cand.suffix.lower() in (".md", ".srt", ".txt"):
+                try:
+                    text = cand.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    text = ""
+                break
+    if len(text) > limit:
+        text = text[:limit] + f"\n…（转写共 {len(text)} 字，已截断，后面没看到的部分不要编）"
+    return text
+
 
 SKELETON = """# 待定标题：把主线压成一句可复述的判断
 
@@ -84,6 +116,8 @@ class Writer(Agent):
                 + (gather_context(ctx.case_dir,
                                   ("选题卡", "素材卡", "事实台账", "研究笔记"))
                    or "（素材目录为空）")
+                + "\n\n以下是转写原文节选（带时间戳；引用原话时标注 [mm:ss]）：\n"
+                + (transcript_excerpt(ctx.case_dir) or "（没有转写稿）")
                 + "\n\n现在写出完整正文。"
             ),
             max_tokens=8000,   # 推理模型含 reasoning，正文需要余量

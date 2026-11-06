@@ -92,11 +92,12 @@ class Critic(Agent):
         if "本文归纳" not in text and "作者判断" not in text:
             problems.append("缺作者判断/编辑归纳的明确标注（SOP v8 §05：三处至少一处）")
         bolds = re.findall(r"\*\*([^*]{4,})\*\*", text)
-        if len(bolds) < 2:
-            problems.append("加粗句不足 2 处，主线无法被扫读复述")
 
         human_fails, human_warns = scan_humanize(text)
         problems.extend(human_fails)
+        # 加粗是编辑预算（SOP v8 §05），不是主线成立的证据，只提示
+        if len(bolds) < 2:
+            human_warns.append(f"加粗句只有 {len(bolds)} 处（建议 2 处以上，便于扫读）")
 
         rows = "\n".join(
             f"| {n}｜{t[:18]} | {'✅' if n else '❓'} | 待人工 | 待人工 | ✅ | 待定 |"
