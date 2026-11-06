@@ -1,0 +1,38 @@
+{
+  "run_id": "34b48bc803e9",
+  "stage": "triaged",
+  "status": "blocked",
+  "source": {
+    "kind": "local",
+    "url": "",
+    "title": "@说话人 1  00:01",
+    "channel": "",
+    "notes": "@说话人 1  00:01 | There's no shortage of drama when it comes to chip making, even when you're winning, the game changes.Do you ever feel like you're running a race that just never stops?Oh, of course.Absolutely.That's exactly what we're doing.I'm running like a different company every few years, like ",
+    "published_at": ""
+  },
+  "case_dir": "16_说话人 1  00_案例",
+  "artifacts": {
+    "topic_card": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_说话人 1  00_案例/选题卡_2026-11-06_说话人 1  00.md"
+  },
+  "history": [
+    {
+      "at": "2026-11-06T12:27:28+00:00",
+      "from": "new",
+      "to": "triaged",
+      "agent": "scout",
+      "note": "选题卡：选题卡_2026-11-06_说话人 1  00.md；等待人工确认选题"
+    }
+  ],
+  "rework": {
+    "count": 0,
+    "last_reason": ""
+  },
+  "gates": {
+    "topic": true,
+    "publish": false
+  },
+  "errors": 0,
+  "error": "缺少转写底稿：/home/runner/work/gongzhonghao/gongzhonghao/cases/16_说话人 1  00_案例/转写；把飞书妙记导出的逐字稿（.md/.txt/.srt）放进该目录即可，会自动转成 transcript.json。飞书：不适用；YouTube：非 YouTube 链接，跳过自动抓取",
+  "created_at": "2026-11-06T12:27:23+00:00",
+  "updated_at": "2026-11-06T12:27:28+00:00"
+}

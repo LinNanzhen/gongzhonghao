@@ -1,0 +1,5 @@
+2026-11-06T12:27:23+00:00	create	local	
+2026-11-06T12:27:23+00:00	case_dir	16_说话人 1  00_案例
+2026-11-06T12:27:28+00:00	advance	scout	triaged
+2026-11-06T12:27:28+00:00	auto_approve	topic
+2026-11-06T12:27:28+00:00	blocked	transcriber	缺少转写底稿：/home/runner/work/gongzhonghao/gongzhonghao/cases/16_说话人 1  00_案例/转写；把飞书妙记导出的逐字稿（.md/.txt/.srt）放进该目录即可，会自动转成 transcript.json。飞书：不适用；YouTube：非 YouTube 链接，跳过自动抓取
