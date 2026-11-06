@@ -84,7 +84,7 @@ class Scout(Agent):
             task="scout.topic_card",
             system="你是深度报道编辑。只输出五项的候选答案，不写正文。",
             prompt=f"标题：{src.title}\n链接：{src.url}\n备注：{src.notes}",
-            max_tokens=800,
+            max_tokens=2000,
         )
         ctx.save_llm("scout", llm)
 

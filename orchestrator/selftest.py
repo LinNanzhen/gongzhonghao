@@ -41,22 +41,22 @@ def main() -> int:
     # 清场（含上次可能的残留案例目录）
     for old in store.all():
         if old.run_id == rid and old.case_dir:
-            shutil.rmtree(old.case_dir, ignore_errors=True)
+            shutil.rmtree(loop.case_path(old), ignore_errors=True)
     if (HERE / "runs" / rid).exists():
         shutil.rmtree(HERE / "runs" / rid)
 
     print("① submit")
     assert run("submit", "--url", TEST_URL, "--title", "自检人物：一次真实选择") == 0
-    case = Path(store.get(rid).case_dir)
+    case = loop.case_path(store.get(rid))
 
     print("② tick → 应停在选题闸门")
-    run("tick")
+    run("tick", "--run-id", rid)
     st = store.get(rid)
     assert st and st.stage == "triaged" and st.waiting_gate == "topic", f"意外：{st}"
 
     print("③ approve topic → 再 tick，应因缺转写 blocked")
     run("approve", "--run-id", rid, "--gate", "topic")
-    run("tick")
+    run("tick", "--run-id", rid)
     st = store.get(rid)
     assert st and st.status == "blocked", f"应当 blocked：{st.stage}/{st.status}"
 
@@ -69,7 +69,7 @@ def main() -> int:
     print("⑤ 循环推进直到人工发布闸门")
     reached = None
     for i in range(14):
-        run("tick")
+        run("tick", "--run-id", rid)
         st = store.get(rid)
         if st.stage == "awaiting_publish" and st.waiting_gate == "publish":
             reached = st
@@ -88,7 +88,7 @@ def main() -> int:
 
     print("⑥ approve publish → tick 归档")
     run("approve", "--run-id", rid, "--gate", "publish")
-    run("tick")
+    run("tick", "--run-id", rid)
     st = store.get(rid)
     assert st.stage == "archived" and st.status == "done", f"未归档：{st.stage}/{st.status}"
     print("✓ 全链路通过：new → archived")

@@ -52,7 +52,7 @@ class Researcher(Agent):
             task="researcher.notes",
             system="你是研究助理。只补证据与对照，不给观点文章。",
             prompt=f"选题卡与台账在 {ctx.case_dir}；请列出还需要核实的三件事。",
-            max_tokens=800,
+            max_tokens=2000,
         )
         ctx.save_llm("researcher", llm)
 

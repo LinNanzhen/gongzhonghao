@@ -59,8 +59,35 @@ def allocate_case_dir(guest: str, run_id: str) -> Path:
     return target
 
 
+def case_path(run: Run) -> Path:
+    """把 state.json 里的 case_dir 解析成本机路径。
+
+    存的是相对名（`01_某某_案例`），这样云端 `cases/` 与本地根目录都能用同一份状态。
+    兼容早期写入的绝对路径：存在就用，不存在退回按名字找。
+    """
+    if not run.case_dir:
+        return allocate_case_dir("待确认人物", run.run_id)
+    raw = Path(run.case_dir)
+    if raw.is_absolute():
+        return raw if raw.exists() else BASE / raw.name
+    return BASE / raw
+
+
+def is_foreign(run: Run) -> bool:
+    """判断 run 是否属于别的运行环境（如云端 run 被拉到本地）。
+
+    判据：case_dir 是绝对路径、在本地不存在、且不在当前 BASE 之下。
+    """
+    if not run.case_dir:
+        return False
+    raw = Path(run.case_dir)
+    if not raw.is_absolute() or raw.exists():
+        return False
+    return not str(raw).startswith(str(BASE))
+
+
 def make_ctx(run: Run, provider, *, dry_run: bool, render: bool) -> Context:
-    case = Path(run.case_dir) if run.case_dir else allocate_case_dir("待确认人物", run.run_id)
+    case = case_path(run)
     return Context(run=run, case_dir=case, orch_dir=HERE,
                    provider=provider, dry_run=dry_run, render=render)
 
@@ -79,8 +106,8 @@ def ingest(store: RunStore, events, *, dry_run: bool) -> list[Run]:
         if dry_run:
             print(f"[dry-run] 将新建 run {e.run_id} → {case.name}")
             continue
-        run = store.create(e.run_id, e.source, str(case))
-        store.save(run, f"case_dir\t{case}")
+        run = store.create(e.run_id, e.source, case.name)
+        store.save(run, f"case_dir\t{case.name}")
         created.append(run)
     return created
 
@@ -93,6 +120,8 @@ def step(store: RunStore, run: Run, provider, *, dry_run: bool, render: bool) ->
         return f"skip（status={run.status}）"
     if run.waiting_gate:
         return f"wait（人工闸门：{run.waiting_gate}）"
+    if is_foreign(run):
+        return "skip（属于其他环境的 run：设 GZH_BASE 或换到该环境执行）"
 
     agent_name = run.next_agent
     agent = AGENTS.get(agent_name or "")
@@ -167,6 +196,8 @@ def cmd_tick(args) -> int:
 
     runs = store.all()
     todo = [r for r in runs if r.status == "active" and not r.waiting_gate]
+    if args.run_id:
+        todo = [r for r in todo if r.run_id == args.run_id]
     if args.max_runs:
         todo = todo[:args.max_runs]
 
@@ -203,8 +234,8 @@ def cmd_submit(args) -> int:
     from orchestrator.agents.scout import guess_guest
     src = Source(kind="cli", url=url, title=args.title, notes=args.notes)
     case = allocate_case_dir(guess_guest(src), rid)
-    run = store.create(rid, src, str(case))
-    store.save(run, f"case_dir\t{case}")
+    run = store.create(rid, src, case.name)
+    store.save(run, f"case_dir\t{case.name}")
     print(f"已建：{rid}\n案例目录：{case}")
     return 0
 
@@ -313,6 +344,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--max-runs", type=int, default=5, help="本轮最多推进几个 run")
     t.add_argument("--render", action="store_true", help="排版时跑三档 Chrome 渲染")
     t.add_argument("--dry-run", action="store_true", help="只打印计划，不写文件")
+    t.add_argument("--run-id", default="", help="只推进指定 run（自检/排障用）")
     t.add_argument("--provider", default="stub",
                    help="LLM provider：stub / openai-compat（别名 deepseek、kimi、qwen）")
     t.add_argument("--model", default="", help="模型名；默认取 GZH_LLM_MODEL")

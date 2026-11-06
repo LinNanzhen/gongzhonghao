@@ -124,13 +124,28 @@ class TestErrors(unittest.TestCase):
                 provider().complete(task="t", system="s", prompt="p")
         self.assertIn("空内容", str(ctx.exception))
 
-    def test_reasoning_eats_budget(self):
-        payload = {"choices": [{"message": {"content": "", "reasoning_content": "想了很久"},
+    def test_reasoning_expands_budget(self):
+        """推理占满 → 自动加倍 → 第二次拿到正文。"""
+        starved = {"choices": [{"message": {"content": "", "reasoning_content": "想了很久"},
                                 "finish_reason": "length"}]}
-        with patch("urllib.request.urlopen", return_value=resp(payload)):
+        with patch("urllib.request.urlopen",
+                   side_effect=[resp(starved), resp(OK)]) as m:
+            out = provider(max_output=1000).complete(
+                task="t", system="s", prompt="p", max_tokens=100)
+        self.assertEqual(out, "写好的正文")
+        self.assertEqual(m.call_count, 2)
+        first = json.loads(m.call_args_list[0].args[0].data.decode())["max_tokens"]
+        second = json.loads(m.call_args_list[1].args[0].data.decode())["max_tokens"]
+        self.assertEqual((first, second), (100, 200))
+
+    def test_reasoning_expansion_hits_ceiling(self):
+        starved = {"choices": [{"message": {"content": "", "reasoning_content": "一直想"},
+                                "finish_reason": "length"}]}
+        with patch("urllib.request.urlopen", return_value=resp(starved)):
             with self.assertRaises(ProviderError) as ctx:
-                provider().complete(task="t", system="s", prompt="p")
-        self.assertIn("max_tokens", str(ctx.exception))
+                provider(max_output=200).complete(
+                    task="t", system="s", prompt="p", max_tokens=100)
+        self.assertIn("推理已占满", str(ctx.exception))
 
     def test_non_json(self):
         class _R:
