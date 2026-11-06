@@ -48,6 +48,8 @@ class Transcriber(Agent):
     name = "transcriber"
     stage = "triaged"
 
+    fetch_reason: str = ""
+
     def run(self, ctx: Context) -> Result:
         src = ctx.run.source
         guest = guest_of(ctx.case_dir)
@@ -64,7 +66,8 @@ class Transcriber(Agent):
             if not transcript.exists():
                 return Result.blocked(
                     f"缺少转写底稿：{tr_dir}；把飞书妙记导出的逐字稿（.md/.txt/.srt）"
-                    f"放进该目录即可，会自动转成 transcript.json"
+                    f"放进该目录即可，会自动转成 transcript.json。"
+                    f"自动抓取状态：{self.fetch_reason or '未启用'}"
                 )
 
         card = ctx.case_dir / f"素材卡_{date.today().isoformat()}_{guest}.md"
@@ -77,6 +80,7 @@ class Transcriber(Agent):
 
     def _try_fetch(self, ctx: Context, tr_dir):
         """policy.auto_transcribe 开启时，尝试抓 YouTube 字幕。"""
+        self.fetch_reason = ""
         if ctx.dry_run:
             return None
         try:
@@ -85,14 +89,22 @@ class Transcriber(Agent):
         except (OSError, ValueError):
             policy = {}
         if not (policy.get("auto_transcribe") or {}).get("enabled"):
+            self.fetch_reason = "policy 未开启 auto_transcribe"
             return None
 
-        from ..fetcher import fetch_subtitles, looks_like_youtube
+        from ..fetcher import fetch_subtitles, looks_like_youtube, yt_dlp_version
         if not looks_like_youtube(ctx.run.source.url):
+            self.fetch_reason = "非 YouTube 链接，跳过自动抓取"
+            return None
+
+        ver = yt_dlp_version()
+        if ver is None:
+            self.fetch_reason = "yt-dlp 不可用（未安装或不在 PATH）"
             return None
 
         vtt = fetch_subtitles(ctx.run.source.url, tr_dir)
         if not vtt:
+            self.fetch_reason = f"yt-dlp {ver} 未取到字幕，详见 转写/yt-dlp.log"
             return None
         try:
             segs = load_any(vtt)

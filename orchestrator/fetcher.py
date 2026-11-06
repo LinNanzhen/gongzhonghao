@@ -59,15 +59,18 @@ def fetch_subtitles(url: str, out_dir: Path, *, langs: str = DEFAULT_LANGS,
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
+        (out_dir / "yt-dlp.log").write_text(f"timeout after {timeout}s", encoding="utf-8")
         return None
-    except OSError:
+    except OSError as exc:
+        (out_dir / "yt-dlp.log").write_text(f"OSError: {exc}", encoding="utf-8")
         return None
 
+    (out_dir / "yt-dlp.log").write_text(
+        f"exit={proc.returncode}\n--- stdout ---\n{proc.stdout[-4000:]}\n"
+        f"--- stderr ---\n{proc.stderr[-4000:]}\n", encoding="utf-8")
+
     candidates = sorted(out_dir.glob("*.vtt"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        _ = proc  # 保留返回码用于上层日志
-        return None
-    return candidates[0]
+    return candidates[0] if candidates else None
 
 
 def looks_like_youtube(url: str) -> bool:
