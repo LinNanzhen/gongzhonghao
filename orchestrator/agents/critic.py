@@ -32,6 +32,10 @@ HUMANIZE_WARN = [
 ]
 
 
+# 中文稿件会混用「」与“”，统计时都要认
+QUOTE_RE = re.compile(r"[“\"「]([^”\"」]{6,})[”\"」]")
+
+
 def scan_humanize(text: str) -> tuple[list[str], list[str]]:
     """返回 (硬伤, 提示)。"""
     body = re.sub(r"^>.*$", "", text, flags=re.M)   # 引文块不算作者笔法
@@ -99,7 +103,7 @@ class Critic(Agent):
         if len(bolds) < 2:
             human_warns.append(f"加粗句只有 {len(bolds)} 处（建议 2 处以上，便于扫读）")
         # 直接引语密度：全是转述时，正文会变成作者在替受访者说话
-        quotes = re.findall(r"[“\"]([^”\"]{6,})[”\"]", text)
+        quotes = QUOTE_RE.findall(text)
         per_k = len(quotes) / max(1.0, len(text) / 1000)
         if per_k < 2:
             human_warns.append(f"直接引语偏少（{len(quotes)} 处 / {len(text)} 字，建议每千字 2 处以上）")
