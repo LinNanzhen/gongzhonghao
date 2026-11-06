@@ -1,7 +1,7 @@
 {
   "run_id": "11068408a22d",
-  "stage": "new",
-  "status": "active",
+  "stage": "triaged",
+  "status": "blocked",
   "source": {
     "kind": "inbox",
     "url": "https://www.youtube.com/watch?v=1mu3x97th90",
@@ -11,18 +11,28 @@
     "published_at": ""
   },
   "case_dir": "15_Advances in_案例",
-  "artifacts": {},
-  "history": [],
+  "artifacts": {
+    "topic_card": "/home/runner/work/gongzhonghao/gongzhonghao/cases/15_Advances in_案例/选题卡_2026-11-06_Advances in .md"
+  },
+  "history": [
+    {
+      "at": "2026-11-06T05:10:17+00:00",
+      "from": "new",
+      "to": "triaged",
+      "agent": "scout",
+      "note": "选题卡：选题卡_2026-11-06_Advances in .md；等待人工确认选题"
+    }
+  ],
   "rework": {
     "count": 0,
     "last_reason": ""
   },
   "gates": {
-    "topic": false,
+    "topic": true,
     "publish": false
   },
   "errors": 0,
-  "error": null,
+  "error": "缺少转写底稿：/home/runner/work/gongzhonghao/gongzhonghao/cases/15_Advances in_案例/转写；把飞书妙记导出的逐字稿（.md/.txt/.srt）放进该目录即可，会自动转成 transcript.json",
   "created_at": "2026-11-06T13:09:09+08:00",
-  "updated_at": "2026-11-06T13:09:09+08:00"
+  "updated_at": "2026-11-06T05:10:17+00:00"
 }
