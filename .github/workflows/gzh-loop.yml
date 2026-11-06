@@ -23,8 +23,13 @@ on:
         description: "本轮最多推进几个 run"
         default: "3"
       provider:
-        description: "LLM provider（stub 不调模型）"
-        default: "stub"
+        description: "LLM 供应商（stub 不调模型，只跑骨架）"
+        type: choice
+        default: stub
+        options: [stub, deepseek, kimi, qwen, openai]
+      model:
+        description: "模型名（留空则用该供应商默认）"
+        default: ""
   repository_dispatch:
     types: [gzh-inbox]
 
@@ -48,7 +53,7 @@ jobs:
       PROVIDER: ${{ github.event.inputs.provider || 'stub' }}
       # 接真实模型时在仓库 Settings → Secrets 里配 GZH_LLM_API_KEY
       GZH_LLM_API_KEY: ${{ secrets.GZH_LLM_API_KEY }}
-      GZH_LLM_MODEL: ${{ vars.GZH_LLM_MODEL }}
+      GZH_LLM_MODEL: ${{ github.event.inputs.model || vars.GZH_LLM_MODEL }}
       GZH_LLM_BASE_URL: ${{ vars.GZH_LLM_BASE_URL }}
 
     steps:

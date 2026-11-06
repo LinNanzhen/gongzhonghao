@@ -153,6 +153,30 @@ class TestFactory(unittest.TestCase):
         with self.assertRaises(ProviderError):
             get_provider("nope")
 
+    def test_presets_per_vendor(self):
+        cases = {
+            "deepseek": ("https://api.deepseek.com/v1", "deepseek-chat"),
+            "kimi": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
+            "qwen": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
+            "openai": ("https://api.openai.com/v1", "gpt-4o-mini"),
+        }
+        for name, (base, model) in cases.items():
+            p = get_provider(name, api_key="k")
+            self.assertEqual(p.base_url, base, name)
+            self.assertEqual(p.model, model, name)
+
+    def test_explicit_overrides_preset(self):
+        with patch.dict(os.environ, {}, clear=True):
+            p = get_provider("kimi", api_key="k", model="custom", base_url="http://x/v1")
+        self.assertEqual(p.model, "custom")
+        self.assertEqual(p.base_url, "http://x/v1")
+
+    def test_env_overrides_preset(self):
+        with patch.dict(os.environ, {"GZH_LLM_MODEL": "env-model"}, clear=False):
+            p = get_provider("kimi", api_key="k")
+        self.assertEqual(p.model, "env-model")
+        self.assertEqual(p.base_url, "https://api.moonshot.cn/v1")
+
     def test_env_defaults(self):
         with patch.dict(os.environ, {"GZH_LLM_BASE_URL": "http://env/v1",
                                      "GZH_LLM_MODEL": "env-model",

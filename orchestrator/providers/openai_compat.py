@@ -26,6 +26,16 @@ from .base import Provider, ProviderError
 
 RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 
+# 厂商预设：显式参数 > 环境变量 > 预设 > 通用默认
+PRESETS: dict[str, tuple[str, str]] = {
+    "deepseek": ("https://api.deepseek.com/v1", "deepseek-chat"),
+    "kimi": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
+    "moonshot": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
+    "qwen": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
+    "dashscope": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"),
+    "openai": ("https://api.openai.com/v1", "gpt-4o-mini"),
+}
+
 
 class OpenAICompatProvider(Provider):
     name = "openai-compat"
@@ -33,13 +43,14 @@ class OpenAICompatProvider(Provider):
     DEFAULT_MODEL = "deepseek-chat"
 
     def __init__(self, *, base_url: str | None = None, api_key: str | None = None,
-                 model: str | None = None, timeout: float = 90.0,
-                 max_retries: int = 2, backoff: float = 1.0):
-        self.base_url = (base_url or os.environ.get("GZH_LLM_BASE_URL")
-                         or self.DEFAULT_BASE_URL).rstrip("/")
+                 model: str | None = None, preset: str | None = None,
+                 timeout: float = 90.0, max_retries: int = 2, backoff: float = 1.0):
+        p_base, p_model = PRESETS.get((preset or "").lower(),
+                                      (self.DEFAULT_BASE_URL, self.DEFAULT_MODEL))
+        self.base_url = (base_url or os.environ.get("GZH_LLM_BASE_URL") or p_base).rstrip("/")
         self.api_key = (api_key or os.environ.get("GZH_LLM_API_KEY")
                         or os.environ.get("OPENAI_API_KEY") or "")
-        self.model = model or os.environ.get("GZH_LLM_MODEL") or self.DEFAULT_MODEL
+        self.model = model or os.environ.get("GZH_LLM_MODEL") or p_model
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff = backoff

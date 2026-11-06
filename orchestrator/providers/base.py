@@ -43,7 +43,8 @@ def get_provider(name: str = "stub", **kwargs) -> Provider:
 
     可用名字：stub / openai-compat（别名 deepseek、kimi、qwen…）
     """
-    key = ALIASES.get((name or "stub").strip().lower())
+    raw = (name or "stub").strip().lower()
+    key = ALIASES.get(raw)
     if key is None:
         raise ProviderError(
             f"未知 provider：{name}（可用：{', '.join(sorted(set(ALIASES)))}）"
@@ -55,4 +56,6 @@ def get_provider(name: str = "stub", **kwargs) -> Provider:
 
     from .openai_compat import OpenAICompatProvider
     allowed = ("base_url", "api_key", "model", "timeout", "max_retries", "backoff")
-    return OpenAICompatProvider(**{k: v for k, v in kwargs.items() if k in allowed and v is not None})
+    picked = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+    picked.setdefault("preset", raw)   # 让 deepseek/kimi/qwen 各自匹配端点
+    return OpenAICompatProvider(**picked)
