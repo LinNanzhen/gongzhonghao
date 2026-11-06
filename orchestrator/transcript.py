@@ -118,6 +118,63 @@ def parse_bare(text: str) -> list[dict]:
     return _fill_end(segments)
 
 
+def parse_vtt(text: str) -> list[dict]:
+    """WebVTT（YouTube 自动字幕）。逐行状态机，避免时间行与文本间的空行切错。"""
+    segments: list[dict] = []
+    span: tuple[float, float] | None = None
+    buf: list[str] = []
+
+    def flush() -> None:
+        nonlocal span, buf
+        if span and buf:
+            txt = _clean_cue(" ".join(buf))
+            if txt:
+                segments.append({"start": span[0], "end": span[1], "speaker": "", "text": txt})
+        span, buf = None, []
+
+    for line in text.replace("\r\n", "\n").splitlines():
+        if "-->" in line:
+            flush()
+            m = re.search(
+                r"(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{1,3})",
+                line)
+            span = (to_seconds(m.group(1)), to_seconds(m.group(2))) if m else None
+            continue
+        if not line.strip():
+            if buf:                      # 只有已收文本才结束 cue
+                flush()
+            continue
+        if line.strip().startswith(("WEBVTT", "Kind:", "Language:", "NOTE", "STYLE", "REGION")):
+            continue
+        if span is not None:
+            buf.append(line.strip())
+    flush()
+    return _dedupe_rolling(_fill_end(segments))
+
+
+def _clean_cue(txt: str) -> str:
+    txt = re.sub(r"<[^>]+>", "", txt)     # <c.colorE5E5E5>、<00:00:01.000>
+    txt = txt.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    return re.sub(r"\s+", " ", txt).strip()
+
+
+def _dedupe_rolling(segments: list[dict]) -> list[dict]:
+    """自动字幕会滚动累积（新句包含旧句），合并成一条。"""
+    out: list[dict] = []
+    for seg in segments:
+        if out:
+            prev = out[-1]
+            if seg["text"] == prev["text"]:
+                prev["end"] = max(prev["end"], seg["end"])
+                continue
+            if seg["text"].startswith(prev["text"]) and len(seg["text"]) > len(prev["text"]):
+                prev["text"] = seg["text"]
+                prev["end"] = max(prev["end"], seg["end"])
+                continue
+        out.append(dict(seg))
+    return out
+
+
 def parse_plain(text: str) -> list[dict]:
     """没有时间戳：整段作为一条，start=0。"""
     body = text.strip()
@@ -134,6 +191,8 @@ def _fill_end(segments: list[dict]) -> list[dict]:
 
 
 def parse_text(text: str) -> list[dict]:
+    if text.lstrip().startswith("WEBVTT"):
+        return parse_vtt(text)
     if FEISHU_LINE.search(text):
         return parse_feishu(text)
     if SRT_TIME.search(text):

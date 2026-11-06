@@ -83,6 +83,12 @@ jobs:
       - name: 单元测试（快，失败即停）
         run: python3 -m unittest orchestrator.test_state orchestrator.test_provider -q
 
+      - name: 安装转写工具
+        run: |
+          python3 -m pip install -q --upgrade yt-dlp
+          command -v ffmpeg >/dev/null || sudo apt-get install -y -qq ffmpeg
+          yt-dlp --version
+
       - name: 模型自检（可选）
         if: inputs.smoke == true
         run: python3 orchestrator/loop.py ping --provider "$PROVIDER"

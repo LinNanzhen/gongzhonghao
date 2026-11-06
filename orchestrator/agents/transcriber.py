@@ -56,8 +56,11 @@ class Transcriber(Agent):
         transcript = tr_dir / "transcript.json"
 
         if not transcript.exists():
-            # 飞书妙记 / SRT / 纯文本：自动转成带时间戳的 transcript.json
+            # 本地已有的飞书/SRT/文本稿优先
             transcript = self._convert_if_possible(ctx, tr_dir) or transcript
+        if not transcript.exists():
+            # 再尝试自动抓 YouTube 字幕（需 policy 开启且装了 yt-dlp）
+            transcript = self._try_fetch(ctx, tr_dir) or transcript
             if not transcript.exists():
                 return Result.blocked(
                     f"缺少转写底稿：{tr_dir}；把飞书妙记导出的逐字稿（.md/.txt/.srt）"
@@ -71,6 +74,37 @@ class Transcriber(Agent):
         return Result.ok(f"素材卡：{card.name}（片段表待人工/模型填充）",
                          artifacts={"material_card": str(card), "transcript": str(transcript)},
                          to="transcribed")
+
+    def _try_fetch(self, ctx: Context, tr_dir):
+        """policy.auto_transcribe 开启时，尝试抓 YouTube 字幕。"""
+        if ctx.dry_run:
+            return None
+        try:
+            import json as _json
+            policy = _json.loads((ctx.orch_dir / "policy.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            policy = {}
+        if not (policy.get("auto_transcribe") or {}).get("enabled"):
+            return None
+
+        from ..fetcher import fetch_subtitles, looks_like_youtube
+        if not looks_like_youtube(ctx.run.source.url):
+            return None
+
+        vtt = fetch_subtitles(ctx.run.source.url, tr_dir)
+        if not vtt:
+            return None
+        try:
+            segs = load_any(vtt)
+        except Exception:  # noqa: BLE001
+            return None
+        if not segs:
+            return None
+        out = tr_dir / "transcript.json"
+        import json as _json
+        self.write(ctx, out, _json.dumps(to_payload(segs, source=vtt.name),
+                                         ensure_ascii=False, indent=2))
+        return out
 
     def _convert_if_possible(self, ctx: Context, tr_dir):
         """把目录里的逐字稿转成 transcript.json；不合法就返回 None。"""

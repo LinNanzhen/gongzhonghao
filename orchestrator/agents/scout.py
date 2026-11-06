@@ -67,6 +67,44 @@ def guess_guest(source) -> str:
     return (cleaned[:12] or "待确认人物")
 
 
+def _parse_json(raw: str) -> dict:
+    """从可能带前后缀/代码块的输出里抠出 JSON 对象。"""
+    import json
+    body = raw.strip()
+    if body.startswith("```"):
+        body = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", body)
+    a, b = body.find("{"), body.rfind("}")
+    if a == -1 or b <= a:
+        return {}
+    try:
+        data = json.loads(body[a:b + 1])
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _fill_fields(text: str, f: dict) -> str:
+    """把 JSON 字段填进模板，空值保留（待填）占位。"""
+    if not f:
+        return text
+    mapping = {
+        "| 读者问题 |": f.get("reader_question"),
+        "| 人物选择 |": f.get("person_choice"),
+        "| 初步判断 |": f.get("thesis"),
+        "| 阅读收益 |": f.get("payoff"),
+        "| 素材条件 |": f.get("material"),
+    }
+    out = []
+    for line in text.splitlines():
+        hit = next((k for k in mapping if line.startswith(k)), None)
+        if hit and isinstance(mapping[hit], str) and mapping[hit].strip():
+            prefix = line.split("|", 2)[:2]
+            out.append(f"{prefix[0]}|{prefix[1]}| {mapping[hit].strip()} |")
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 class Scout(Agent):
     name = "scout"
     stage = "new"
@@ -79,20 +117,25 @@ class Scout(Agent):
         if card_path.exists():
             return Result.skip(f"选题卡已存在：{card_path.name}")
 
-        # 有真实 provider 时，让模型先给候选判断；桩模式直接用模板
         llm = ctx.provider.complete(
             task="scout.topic_card",
-            system="你是深度报道编辑。只输出五项的候选答案，不写正文。",
-            prompt=f"标题：{src.title}\n链接：{src.url}\n备注：{src.notes}",
+            system=("你是深度报道编辑。只输出一个 JSON 对象，不要解释、不要代码块。"
+                    "字段：reader_question（读者最需要理解什么）、person_choice（哪次真实选择能解释它）、"
+                    "thesis（一句可被证据修正的判断）、payoff（读前以为X、读后知道Y）、"
+                    "material（原话/数据/对照是否够，缺什么）。每项不超过 60 字。"),
+            prompt=(f"标题：{src.title or '（无）'}\n频道：{src.channel or '（无）'}\n"
+                    f"链接：{src.url}\n备注：{src.notes or '（无）'}"),
             max_tokens=2000,
         )
         ctx.save_llm("scout", llm)
 
+        fields = _parse_json(llm) or {}
         text = TOPIC_CARD.format(guest=guest, url=src.url,
                                  channel=src.channel or "未标注",
                                  today=date.today().isoformat())
-        if not llm.startswith("[STUB]"):
-            text += f"\n## 五、模型候选（待人工取舍）\n\n{llm.strip()}\n"
+        text = _fill_fields(text, fields)
+        if not fields and not llm.startswith("[STUB]"):
+            text += f"\n## 五、模型原始输出（未解析为字段）\n\n{llm.strip()}\n"
 
         self.write(ctx, card_path, text)
         return Result.ok(f"选题卡：{card_path.name}；等待人工确认选题",

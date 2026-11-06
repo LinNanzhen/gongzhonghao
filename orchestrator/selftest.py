@@ -28,10 +28,30 @@ def run(*argv: str) -> int:
     return loop.main(list(argv))
 
 
+def _neutral_policy():
+    """自检期间临时关闭自动放行，保证断言不受用户策略影响。"""
+    import json
+    path = HERE / "policy.json"
+    backup = path.read_text(encoding="utf-8") if path.exists() else None
+
+    def restore():
+        if backup is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_text(backup, encoding="utf-8")
+
+    if backup:
+        data = json.loads(backup)
+        data["auto_approve"] = {"topic": False, "publish": False}
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return restore
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", action="store_true", help="保留产物与 run 状态")
     args = ap.parse_args()
+    restore_policy = _neutral_policy()
 
     from orchestrator.state import run_id_for
     rid = run_id_for(TEST_URL)
@@ -93,6 +113,7 @@ def main() -> int:
     assert st.stage == "archived" and st.status == "done", f"未归档：{st.stage}/{st.status}"
     print("✓ 全链路通过：new → archived")
 
+    restore_policy()
     if not args.keep:
         shutil.rmtree(case, ignore_errors=True)
         shutil.rmtree(HERE / "runs" / rid, ignore_errors=True)

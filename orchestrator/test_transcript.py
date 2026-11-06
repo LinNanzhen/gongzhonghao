@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator.transcript import (  # noqa: E402
-    parse_feishu, parse_srt, parse_text, to_seconds,
+    parse_feishu, parse_srt, parse_text, parse_vtt, to_seconds,
 )
 
 FEISHU = """@说话人 1  00:01
@@ -39,6 +39,24 @@ SRT = """1
 """
 
 PLAIN = "没有任何时间戳的一段话。\n第二行。"
+
+# YouTube 自动字幕：滚动累积（第二块包含第一块）
+VTT = """WEBVTT
+Kind: captions
+Language: en
+
+00:00:00.000 --> 00:00:02.000 align:start position:0%
+
+hello
+
+00:00:02.000 --> 00:00:04.000 align:start position:0%
+hello
+world
+
+00:00:04.000 --> 00:00:06.000 align:start position:0%
+world again
+"""
+
 
 
 class TestTimes(unittest.TestCase):
@@ -84,6 +102,24 @@ class TestSrt(unittest.TestCase):
         self.assertEqual(segs[0]["start"], 1.0)
         self.assertEqual(segs[0]["end"], 3.5)
         self.assertEqual(segs[0]["text"], "第一句")
+
+
+class TestVtt(unittest.TestCase):
+    def test_rolling_dedupe(self):
+        segs = parse_vtt(VTT)
+        self.assertEqual(len(segs), 2, [s["text"] for s in segs])
+        self.assertEqual(segs[0]["text"], "hello world")
+        self.assertEqual(segs[0]["start"], 0.0)
+        self.assertEqual(segs[0]["end"], 4.0)
+        self.assertEqual(segs[1]["text"], "world again")
+
+    def test_tags_stripped(self):
+        raw = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n<c.colorE5E5E5>hi</c> <00:00:01.500>there\n"
+        segs = parse_vtt(raw)
+        self.assertEqual(segs[0]["text"], "hi there")
+
+    def test_dispatch_by_header(self):
+        self.assertEqual(parse_text(VTT)[0]["text"], "hello world")
 
 
 class TestDispatch(unittest.TestCase):

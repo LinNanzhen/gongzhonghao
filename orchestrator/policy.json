@@ -1,0 +1,17 @@
+{
+  "_comment": "编排策略。改这里即改变自动化程度，不需要改代码。",
+  "auto_approve": {
+    "topic": true,
+    "publish": false
+  },
+  "auto_transcribe": {
+    "enabled": true,
+    "source": "youtube",
+    "max_minutes": 90
+  },
+  "notes": {
+    "auto_approve.topic": "选题自动放行：scout 用模型填五项后直接进入转写",
+    "auto_approve.publish": "发布不自动：质检通过后停在 awaiting_publish，等人粘贴",
+    "auto_transcribe.enabled": "缺转写时用 yt-dlp 抓 YouTube 字幕；失败仍 blocked"
+  }
+}

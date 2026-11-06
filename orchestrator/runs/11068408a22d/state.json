@@ -1,35 +1,18 @@
 {
   "run_id": "11068408a22d",
-  "stage": "triaged",
+  "stage": "new",
   "status": "active",
   "source": {
     "kind": "inbox",
     "url": "https://www.youtube.com/watch?v=1mu3x97th90",
-    "title": "",
-    "channel": "",
+    "title": "Advances in computational protein design | The Royal Society",
+    "channel": "The Royal Society",
     "notes": "",
     "published_at": ""
   },
-  "case_dir": "/home/runner/work/gongzhonghao/gongzhonghao/cases/01_待确认人物_案例",
-  "artifacts": {
-    "topic_card": "/home/runner/work/gongzhonghao/gongzhonghao/cases/01_待确认人物_案例/选题卡_2026-11-06_待确认人物.md"
-  },
-  "history": [
-    {
-      "at": "2026-11-06T04:58:59+00:00",
-      "from": "new",
-      "to": "new",
-      "agent": "scout",
-      "note": "error: ProviderError: scout.topic_card：max_tokens 被推理内容占满（finish_reason=length），请增大 max_tokens（当前推理 1398 字）"
-    },
-    {
-      "at": "2026-11-06T05:00:43+00:00",
-      "from": "new",
-      "to": "triaged",
-      "agent": "scout",
-      "note": "选题卡：选题卡_2026-11-06_待确认人物.md；等待人工确认选题"
-    }
-  ],
+  "case_dir": "15_Advances in_案例",
+  "artifacts": {},
+  "history": [],
   "rework": {
     "count": 0,
     "last_reason": ""
@@ -40,6 +23,6 @@
   },
   "errors": 0,
   "error": null,
-  "created_at": "2026-11-06T04:58:51+00:00",
-  "updated_at": "2026-11-06T05:00:43+00:00"
+  "created_at": "2026-11-06T13:09:09+08:00",
+  "updated_at": "2026-11-06T13:09:09+08:00"
 }

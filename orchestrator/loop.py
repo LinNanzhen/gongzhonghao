@@ -40,6 +40,58 @@ from orchestrator.state import (                 # noqa: E402
 )
 
 
+# ---------------------------------------------------------------- 策略
+
+POLICY_PATH = HERE / "policy.json"
+DEFAULT_POLICY: dict = {"auto_approve": {"topic": False, "publish": False},
+                        "auto_transcribe": {"enabled": False}}
+
+
+def load_policy() -> dict:
+    if POLICY_PATH.exists():
+        try:
+            return json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    return DEFAULT_POLICY
+
+
+def try_auto_gate(store: RunStore, run: Run, policy: dict) -> bool:
+    """若策略允许，放行当前闸门并返回 True。"""
+    gate = run.waiting_gate
+    if not gate or is_foreign(run):
+        return False
+    if not (policy.get("auto_approve") or {}).get(gate):
+        return False
+    if gate == "publish":
+        run.gates["publish"] = True
+        run.advance("published", "auto", "策略自动放行发布")
+    else:
+        run.gates[gate] = True
+    store.save(run, f"auto_approve\t{gate}")
+    return True
+
+
+def apply_auto_approve(store: RunStore, runs: list[Run], policy: dict) -> list[Run]:
+    """按策略自动放行闸门；放行记录写进 events.log，可审计。"""
+    auto = policy.get("auto_approve") or {}
+    changed = []
+    for run in runs:
+        if run.status != "active" or is_foreign(run):
+            continue
+        gate = run.waiting_gate
+        if not gate or not auto.get(gate):
+            continue
+        if gate == "publish":
+            run.gates["publish"] = True
+            run.advance("published", "auto", "策略自动放行发布")
+        else:
+            run.gates[gate] = True
+        store.save(run, f"auto_approve\t{gate}")
+        changed.append(run)
+    return changed
+
+
 # ---------------------------------------------------------------- 工具
 
 
@@ -100,6 +152,13 @@ def ingest(store: RunStore, events, *, dry_run: bool) -> list[Run]:
     fresh = ev.dedupe(events, existing)
     created: list[Run] = []
     for e in fresh:
+        from orchestrator.fetcher import fetch_oembed
+        if not e.source.title:
+            meta = fetch_oembed(e.source.url)
+            if meta.get("title"):
+                e.source.title = meta["title"]
+            if meta.get("channel"):
+                e.source.channel = meta["channel"]
         from orchestrator.agents.scout import guess_guest
         guest = guess_guest(e.source)
         case = allocate_case_dir(guest, e.run_id)
@@ -181,6 +240,7 @@ def cmd_tick(args) -> int:
         print("缺少 API key：请设置 GZH_LLM_API_KEY（或改用 --provider stub）", file=sys.stderr)
         return 2
 
+    policy = load_policy()
     collected = list(ev.scan_inbox(HERE / "inbox"))
     warnings: list[str] = []
     if args.scan:
@@ -195,6 +255,18 @@ def cmd_tick(args) -> int:
         print(f"新建 {len(created)} 个 run")
 
     runs = store.all()
+    # 老 run 补标题（建 run 时网络可能不通）
+    from orchestrator.fetcher import fetch_oembed
+    for r in runs:
+        if r.status == "active" and not r.source.title:
+            meta = fetch_oembed(r.source.url)
+            if meta.get("title"):
+                r.source.title = meta["title"]
+                r.source.channel = meta.get("channel", "")
+                store.save(r, f"enrich\ttitle={meta['title'][:40]}")
+    for r in apply_auto_approve(store, runs, policy):
+        print(f"auto 放行 {r.run_id}（{r.stage}）")
+    runs = store.all()
     todo = [r for r in runs if r.status == "active" and not r.waiting_gate]
     if args.run_id:
         todo = [r for r in todo if r.run_id == args.run_id]
@@ -202,7 +274,21 @@ def cmd_tick(args) -> int:
         todo = todo[:args.max_runs]
 
     for run in todo:
-        print(f"→ {run.run_id} [{run.case_dir or '?'}] : {step(store, run, provider, dry_run=args.dry_run, render=args.render)}")
+        label = f"→ {run.run_id} [{run.case_dir or '?'}]"
+        for i in range(6):
+            run = store.get(run.run_id)
+            if run is None or run.status != "active":
+                break
+            if run.waiting_gate:
+                if try_auto_gate(store, run, policy):
+                    print(f"{label} : auto 放行 {run.gates}")
+                    continue
+                print(f"{label} : wait（人工闸门：{run.waiting_gate}）")
+                break
+            msg = step(store, run, provider, dry_run=args.dry_run, render=args.render)
+            print(f"{label} : {msg}")
+            if msg.startswith(("skip", "wait", "error", "rework", "blocked")):
+                break
 
     waiting = [r for r in runs if r.waiting_gate and r.status == "active"]
     if waiting:

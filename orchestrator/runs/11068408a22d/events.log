@@ -1,4 +1,2 @@
-2026-11-06T04:58:51+00:00	create	inbox	https://www.youtube.com/watch?v=1mu3x97th90
-2026-11-06T04:58:51+00:00	case_dir	/home/runner/work/gongzhonghao/gongzhonghao/cases/01_待确认人物_案例
-2026-11-06T04:58:59+00:00	error	scout	scout.topic_card：max_tokens 被推理内容占满（finish_reason=length），请增大 max_tokens（当前推理 1398 字）
-2026-11-06T05:00:43+00:00	advance	scout	triaged
+2026-11-06T13:09:09+08:00	create	inbox	https://www.youtube.com/watch?v=1mu3x97th90
+2026-11-06T13:09:09+08:00	case_dir	15_Advances in_案例
