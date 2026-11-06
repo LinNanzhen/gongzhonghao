@@ -1,0 +1,36 @@
+{
+  "run_id": "11068408a22d",
+  "stage": "new",
+  "status": "active",
+  "source": {
+    "kind": "inbox",
+    "url": "https://www.youtube.com/watch?v=1mu3x97th90",
+    "title": "",
+    "channel": "",
+    "notes": "",
+    "published_at": ""
+  },
+  "case_dir": "/home/runner/work/gongzhonghao/gongzhonghao/cases/01_待确认人物_案例",
+  "artifacts": {},
+  "history": [
+    {
+      "at": "2026-11-06T04:58:59+00:00",
+      "from": "new",
+      "to": "new",
+      "agent": "scout",
+      "note": "error: ProviderError: scout.topic_card：max_tokens 被推理内容占满（finish_reason=length），请增大 max_tokens（当前推理 1398 字）"
+    }
+  ],
+  "rework": {
+    "count": 0,
+    "last_reason": ""
+  },
+  "gates": {
+    "topic": false,
+    "publish": false
+  },
+  "errors": 1,
+  "error": "ProviderError: scout.topic_card：max_tokens 被推理内容占满（finish_reason=length），请增大 max_tokens（当前推理 1398 字）",
+  "created_at": "2026-11-06T04:58:51+00:00",
+  "updated_at": "2026-11-06T04:58:59+00:00"
+}
