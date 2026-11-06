@@ -33,7 +33,7 @@ if str(PKG_ROOT) not in sys.path:
 from orchestrator import events as ev            # noqa: E402
 from orchestrator.agents import AGENTS           # noqa: E402
 from orchestrator.agents.base import Context     # noqa: E402
-from orchestrator.providers.base import get_provider  # noqa: E402
+from orchestrator.providers.base import ProviderError, get_provider  # noqa: E402
 from orchestrator.state import (                 # noqa: E402
     GATES, Run, RunStore, Source, IllegalTransition, run_id_for, normalize_url,
 )
@@ -138,7 +138,13 @@ def step(store: RunStore, run: Run, provider, *, dry_run: bool, render: bool) ->
 def cmd_tick(args) -> int:
     store = RunStore(HERE / "runs")
     pkw = {k: getattr(args, k) for k in ("model", "base_url") if getattr(args, k, "")}
-    provider = get_provider(args.provider, **pkw)
+    try:
+        provider = get_provider(args.provider, **pkw)
+    except ProviderError as exc:
+        print(f"provider 配置错误：{exc}", file=sys.stderr)
+        print("提示：provider 填供应商名（stub/deepseek/kimi/qwen/openai），key 请放 GZH_LLM_API_KEY",
+              file=sys.stderr)
+        return 2
 
     # 真实 provider 缺 key 时提前失败，避免每个 run 各报一次错
     if args.provider not in ("stub",) and not getattr(provider, "api_key", ""):
