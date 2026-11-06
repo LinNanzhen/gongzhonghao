@@ -243,7 +243,7 @@ def cmd_ping(args) -> int:
     t0 = time.time()
     try:
         out = provider.complete(task="ping", system="你是连通性探针，只回复 ok。",
-                                prompt="回复 ok", max_tokens=8, temperature=0)
+                                prompt="只回复 ok", max_tokens=64, temperature=0)
     except ProviderError as exc:
         print(f"失败：{exc}", file=sys.stderr)
         return 2

@@ -124,6 +124,14 @@ class TestErrors(unittest.TestCase):
                 provider().complete(task="t", system="s", prompt="p")
         self.assertIn("空内容", str(ctx.exception))
 
+    def test_reasoning_eats_budget(self):
+        payload = {"choices": [{"message": {"content": "", "reasoning_content": "想了很久"},
+                                "finish_reason": "length"}]}
+        with patch("urllib.request.urlopen", return_value=resp(payload)):
+            with self.assertRaises(ProviderError) as ctx:
+                provider().complete(task="t", system="s", prompt="p")
+        self.assertIn("max_tokens", str(ctx.exception))
+
     def test_non_json(self):
         class _R:
             def read(self):

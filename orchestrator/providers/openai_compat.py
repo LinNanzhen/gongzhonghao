@@ -119,9 +119,15 @@ class OpenAICompatProvider(Provider):
             msg = err.get("message") if isinstance(err, dict) else None
             raise ProviderError(f"{task}：响应没有 choices（{msg or _safe_snippet(raw)}）")
 
-        content = (choices[0].get("message") or {}).get("content") or ""
-        if not content.strip():
+        message = choices[0].get("message") or {}
+        content = (message.get("content") or "").strip()
+        if not content:
             finish = choices[0].get("finish_reason")
+            reasoning = (message.get("reasoning_content") or "").strip()
+            if reasoning and finish == "length":
+                raise ProviderError(
+                    f"{task}：max_tokens 被推理内容占满（finish_reason=length），"
+                    f"请增大 max_tokens（当前推理 {len(reasoning)} 字）")
             raise ProviderError(f"{task}：返回空内容（finish_reason={finish}）")
         return content
 
