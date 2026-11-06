@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -227,6 +228,30 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_ping(args) -> int:
+    """连通性自检：调一次模型，确认 key / 端点 / 模型名都对。"""
+    pkw = {k: getattr(args, k) for k in ("model", "base_url") if getattr(args, k, "")}
+    try:
+        provider = get_provider(args.provider, **pkw)
+    except ProviderError as exc:
+        print(f"provider 配置错误：{exc}", file=sys.stderr)
+        return 2
+    if provider.name != "stub" and not getattr(provider, "api_key", ""):
+        print("缺少 API key：请设置 GZH_LLM_API_KEY（或 DEEPSEEK_API_KEY）", file=sys.stderr)
+        return 2
+
+    t0 = time.time()
+    try:
+        out = provider.complete(task="ping", system="你是连通性探针，只回复 ok。",
+                                prompt="回复 ok", max_tokens=8, temperature=0)
+    except ProviderError as exc:
+        print(f"失败：{exc}", file=sys.stderr)
+        return 2
+    print(f"ok  provider={provider.name}  model={getattr(provider, 'model', '-')}  "
+          f"{time.time() - t0:.1f}s  -> {out.strip()[:40]}")
+    return 0
+
+
 def cmd_resume(args) -> int:
     """人工介入后解封 blocked/stale 的 run，重置重试计数。"""
     store = RunStore(HERE / "runs")
@@ -304,6 +329,12 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("status", help="查看 run")
     st.add_argument("--json", action="store_true")
     st.set_defaults(func=cmd_status)
+
+    pg = sub.add_parser("ping", help="模型连通性自检")
+    pg.add_argument("--provider", default="stub")
+    pg.add_argument("--model", default="")
+    pg.add_argument("--base-url", default="", dest="base_url")
+    pg.set_defaults(func=cmd_ping)
 
     r = sub.add_parser("resume", help="解封 blocked run")
     r.add_argument("--run-id", required=True)

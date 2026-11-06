@@ -6,7 +6,7 @@
 
 配置（环境变量，key 不入库）：
     GZH_LLM_BASE_URL  默认 https://api.deepseek.com/v1
-    GZH_LLM_API_KEY   必填
+    GZH_LLM_API_KEY   必填（也接受 DEEPSEEK_API_KEY / OPENAI_API_KEY）
     GZH_LLM_MODEL     默认 deepseek-flash
 
 重试策略（对齐 SOP v9 §07）：
@@ -48,7 +48,9 @@ class OpenAICompatProvider(Provider):
         p_base, p_model = PRESETS.get((preset or "").lower(),
                                       (self.DEFAULT_BASE_URL, self.DEFAULT_MODEL))
         self.base_url = (base_url or os.environ.get("GZH_LLM_BASE_URL") or p_base).rstrip("/")
-        self.api_key = (api_key or os.environ.get("GZH_LLM_API_KEY")
+        self.api_key = (api_key
+                        or os.environ.get("GZH_LLM_API_KEY")
+                        or os.environ.get("DEEPSEEK_API_KEY")
                         or os.environ.get("OPENAI_API_KEY") or "")
         self.model = model or os.environ.get("GZH_LLM_MODEL") or p_model
         self.timeout = timeout

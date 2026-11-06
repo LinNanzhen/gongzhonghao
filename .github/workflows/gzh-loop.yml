@@ -30,6 +30,10 @@ on:
       model:
         description: "模型名（留空则用该供应商默认）"
         default: ""
+      smoke:
+        description: "只做一次模型连通性自检，不推进任务"
+        type: boolean
+        default: false
   repository_dispatch:
     types: [gzh-inbox]
 
@@ -52,7 +56,8 @@ jobs:
       MAX_RUNS: ${{ github.event.inputs.max_runs || '3' }}
       PROVIDER: ${{ github.event.inputs.provider || 'stub' }}
       # 接真实模型时在仓库 Settings → Secrets 里配 GZH_LLM_API_KEY
-      GZH_LLM_API_KEY: ${{ secrets.GZH_LLM_API_KEY }}
+      # 推荐 GZH_LLM_API_KEY；历史仓库里若叫 DEEPSEEK 也能取到
+      GZH_LLM_API_KEY: ${{ secrets.GZH_LLM_API_KEY || secrets.DEEPSEEK }}
       GZH_LLM_MODEL: ${{ github.event.inputs.model || vars.GZH_LLM_MODEL }}
       GZH_LLM_BASE_URL: ${{ vars.GZH_LLM_BASE_URL }}
 
@@ -68,7 +73,12 @@ jobs:
       - name: 单元测试（快，失败即停）
         run: python3 -m unittest orchestrator.test_state orchestrator.test_provider -q
 
+      - name: 模型自检（可选）
+        if: inputs.smoke == true
+        run: python3 orchestrator/loop.py ping --provider "$PROVIDER"
+
       - name: 推进一轮
+        if: inputs.smoke != true
         run: |
           mkdir -p "$GZH_BASE"
           SCAN_FLAG="--scan"
