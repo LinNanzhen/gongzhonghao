@@ -8,3 +8,5 @@
 2026-11-06T12:28:59+00:00	advance	researcher	researched
 2026-11-06T12:29:17+00:00	advance	writer	drafted
 2026-11-06T20:32:06+08:00	rewind	researched	修正 prompt：之前模型读不到素材
+2026-11-06T12:33:07+00:00	advance	writer	drafted
+2026-11-06T12:33:07+00:00	rework	critic	加粗句不足 2 处，主线无法被扫读复述
