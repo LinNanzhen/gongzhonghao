@@ -1,6 +1,6 @@
 {
   "run_id": "34b48bc803e9",
-  "stage": "researched",
+  "stage": "awaiting_publish",
   "status": "active",
   "source": {
     "kind": "local",
@@ -17,7 +17,11 @@
     "transcript": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/转写/transcript.json",
     "ledger": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/事实台账_2026-11-06_苏姿丰回归.md",
     "research": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/研究笔记_2026-11-06_苏姿丰回归.md",
-    "draft": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/苏姿丰回归_人味版.md"
+    "draft": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/苏姿丰回归_人味版.md",
+    "critique": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/体检报告_2026-11-06.md",
+    "preview": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/苏姿丰回归_v1_排版预览.html",
+    "import": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/苏姿丰回归_v1_导入片段.html",
+    "qc_report": "/home/runner/work/gongzhonghao/gongzhonghao/cases/16_苏姿丰回归_案例/苏姿丰回归_v1_质检报告.md"
   },
   "history": [
     {
@@ -75,6 +79,41 @@
       "to": "researched",
       "agent": "critic",
       "note": "rework: 加粗句不足 2 处，主线无法被扫读复述"
+    },
+    {
+      "at": "2026-11-06T12:50:31+00:00",
+      "from": "researched",
+      "to": "drafted",
+      "agent": "writer",
+      "note": "正文：苏姿丰回归_人味版.md"
+    },
+    {
+      "at": "2026-11-06T12:50:31+00:00",
+      "from": "drafted",
+      "to": "critiqued",
+      "agent": "critic",
+      "note": "体检通过：体检报告_2026-11-06.md"
+    },
+    {
+      "at": "2026-11-06T12:50:31+00:00",
+      "from": "critiqued",
+      "to": "composed",
+      "agent": "composer",
+      "note": "排版完成：苏姿丰回归_v1（render=off）"
+    },
+    {
+      "at": "2026-11-06T12:50:31+00:00",
+      "from": "composed",
+      "to": "qc_passed",
+      "agent": "gatekeeper",
+      "note": "质检通过：苏姿丰回归_v1_质检报告.md"
+    },
+    {
+      "at": "2026-11-06T12:50:31+00:00",
+      "from": "qc_passed",
+      "to": "awaiting_publish",
+      "agent": "gatekeeper",
+      "note": "门禁已过，停在人工发布闸门"
     }
   ],
   "rework": {
@@ -88,5 +127,5 @@
   "errors": 0,
   "error": null,
   "created_at": "2026-11-06T12:28:38+00:00",
-  "updated_at": "2026-11-06T12:33:07+00:00"
+  "updated_at": "2026-11-06T12:50:31+00:00"
 }
