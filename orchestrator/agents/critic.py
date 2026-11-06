@@ -14,6 +14,37 @@ from datetime import date
 from .base import Agent, Context, Result, guest_of
 
 TOPIC_WORDS = ["背景", "现状", "挑战", "建议", "概述", "分析", "影响几何", "怎么办"]
+
+# 人味检查（依据 模板/人味检查表.md）。
+# 硬伤：命中即打回——这几条都是"没有新增信息还抬高语气"，不是风格偏好。
+HUMANIZE_FAIL = [
+    ("意义拔高", r"标志着|彰显了|预示着一个?新|开启了.{0,6}(时代|篇章)"),
+    ("套话收尾", r"拭目以待|未来可期|让我们共同|期待更多可能|值得每个人深思"),
+    ("AI 高频词", r"赋能|抓手|底层逻辑|颗粒度|势能|破局"),
+]
+# 提示：只写进报告，不阻断——上下文中可能成立（如"闭环反馈"是术语）。
+HUMANIZE_WARN = [
+    ("假对比", r"不仅.{0,12}更是"),
+    ("伪深度", r"这背后是|本质上，"),
+    ("起跑式铺垫", r"接下来[，,]?让我们|下面我们|让我们深入"),
+    ("借笼统权威", r"(专家|业内人士|有研究)(认为|指出|表示)"),
+    ("破折号密集", r"——[^。\n]{0,20}——"),
+]
+
+
+def scan_humanize(text: str) -> tuple[list[str], list[str]]:
+    """返回 (硬伤, 提示)。"""
+    body = re.sub(r"^>.*$", "", text, flags=re.M)   # 引文块不算作者笔法
+    fails, warns = [], []
+    for name, pattern in HUMANIZE_FAIL:
+        hits = [m.group(0) for m in re.finditer(pattern, body)]
+        if hits:
+            fails.append(f"人味硬伤·{name}（{len(hits)} 处，如「{hits[0][:12]}」）")
+    for name, pattern in HUMANIZE_WARN:
+        hits = [m.group(0) for m in re.finditer(pattern, body)]
+        if hits:
+            warns.append(f"人味提示·{name}（{len(hits)} 处，如「{hits[0][:14]}」）")
+    return fails, warns
 REPORT = """# 观点体检 · {guest}
 
 > 生成：{today}（critic，依据 SOP v8 §05）
@@ -64,11 +95,16 @@ class Critic(Agent):
         if len(bolds) < 2:
             problems.append("加粗句不足 2 处，主线无法被扫读复述")
 
+        human_fails, human_warns = scan_humanize(text)
+        problems.extend(human_fails)
+
         rows = "\n".join(
             f"| {n}｜{t[:18]} | {'✅' if n else '❓'} | 待人工 | 待人工 | ✅ | 待定 |"
             for n, t in sections) or "| — | — | — | — | — | — |"
         verdict = ("**通过**：可机器判的两关已过，其余待人工读稿。"
                    if not problems else "**打回**：" + "；".join(problems))
+        if human_warns:
+            verdict += "\n\n> 人味提示（按语境判断，不必全改）：" + "；".join(human_warns)
 
         report = ctx.case_dir / f"体检报告_{date.today().isoformat()}.md"
         guest = guest_of(ctx.case_dir)

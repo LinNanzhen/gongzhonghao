@@ -64,16 +64,22 @@ VISUAL = {
 
 # ---------------------------------------------------------------- 禁用词（与模板/禁用词表.md 同步维护）
 # 高危词：命中即 FAIL（典型财经稿 AI 味词汇）
+# 分级依据见 01_SOP工作流/模板/人味检查表.md：
+# 自动门禁判不了语境，只把「几乎总是空话」的放 FAIL；
+# 在技术或正式语境里可能成立的（闭环、链路、沉淀、对齐）降为 WARN。
 FORBIDDEN_WORDS = [
-    "赋能", "抓手", "闭环", "打法", "底层逻辑", "颗粒度", "拉齐", "对齐",
-    "复盘", "沉淀", "链路", "势能", "破局",
+    "赋能", "抓手", "打法", "底层逻辑", "颗粒度", "拉齐",
+    "复盘", "势能", "破局",
     "值得注意的是", "不可忽视的是", "总而言之",
     "让我们一起", "值得深思的是", "综合来看",
     "人的价值在重新定义", "这说明了", "在这个信息爆炸的时代", "随着……的不断发展",
 ]
 # 语境词：命中即 WARN（如"心智"在科技语境下可正常使用、"最后"是叙事而非列举）
-FORBIDDEN_CONTEXT = ["首先", "其次", "最后", "无疑", "显然", "心智"]
-FORBIDDEN_RE = re.compile(r"在[^。；，]{2,12}的今天|不仅仅是[^。；，]{1,30}更是|这背后是")
+FORBIDDEN_CONTEXT = ["首先", "其次", "最后", "无疑", "显然", "心智",
+                     "闭环", "链路", "沉淀", "对齐"]
+FORBIDDEN_RE = re.compile(r"在[^。；，]{2,12}的今天|这背后是")
+# 句式层面的语境词：假对比有时成立（前后两半各自有信息），只提示
+FORBIDDEN_CONTEXT_RE = re.compile(r"不仅仅是[^。；，]{1,30}更是")
 
 # ---------------------------------------------------------------- 硬规则门禁（模板/公众号HTML硬规则.md）
 HARD_GATES = [
@@ -349,6 +355,9 @@ def qa_gates(body_html, preview_html, import_html):
             ctx_hits.append(f"{w}（…{text[max(0, idx - 10):idx + 20]}…）")
     for m in FORBIDDEN_RE.finditer(text):
         hits.append(f"句式「{m.group(0)}」")
+    for m in FORBIDDEN_CONTEXT_RE.finditer(text):
+        idx = m.start()
+        ctx_hits.append(f"句式「{m.group(0)}」（…{text[max(0, idx - 8):idx + 26]}…）")
     if hits:
         report.append(("禁用词/句式", "fail", "; ".join(hits)))
     elif ctx_hits:
