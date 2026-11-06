@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import time
 from datetime import date
@@ -167,6 +168,12 @@ def ingest(store: RunStore, events, *, dry_run: bool) -> list[Run]:
             continue
         run = store.create(e.run_id, e.source, case.name)
         store.save(run, f"case_dir\t{case.name}")
+        if e.attachments:
+            tr = case / "转写"
+            tr.mkdir(parents=True, exist_ok=True)
+            for att in e.attachments:
+                shutil.copy2(att, tr / att.name)
+            store.save(run, f"copy_transcript\t{','.join(a.name for a in e.attachments)}")
         created.append(run)
     return created
 

@@ -165,6 +165,18 @@ GET /open-apis/minutes/v1/minutes/{minute_token}/transcript
 
 失败不会静默：错误写进 `转写/feishu.log`，`blocked` 的原因里会直接说明是缺凭证、无权限还是转写未完成。
 
+## 一次投递：链接 + 转写稿放一起
+
+`inbox/` 支持同名配对，不需要"先建任务、再往案例目录塞文件"：
+
+```
+inbox/
+├── David_Baker.md      ← 第一行标题，第二行链接
+└── David_Baker.srt     ← 同名即附件，建任务时自动复制到 cases/…/转写/
+```
+
+只有转写稿也行（本地录音）：`inbox/本地录音.srt`，文件名即标题，`kind=local`。
+
 ## 转写稿怎么进来
 
 云端不跑转写引擎，但**能直接吃飞书妙记的导出**：

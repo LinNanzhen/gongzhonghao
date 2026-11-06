@@ -13,22 +13,28 @@ import re
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .state import Source, normalize_url, run_id_for
+from .state import Source, normalize_url, run_id_for, run_id_for_text
 
 URL_RE = re.compile(r"https?://[^\s<>\"')]+")
+
+
+# 允许与主文件同名的转写附件
+TRANSCRIPT_EXT = {".srt", ".vtt", ".json", ".txt", ".md"}
 
 
 @dataclass
 class Event:
     source: Source
     run_id: str
+    attachments: list[Path] = field(default_factory=list)
 
     def __str__(self) -> str:
-        return f"{self.run_id}  {self.source.kind:5s}  {self.source.url}"
+        extra = f"  +{len(self.attachments)}附件" if self.attachments else ""
+        return f"{self.run_id}  {self.source.kind:5s}  {self.source.url}{extra}"
 
 
 # ---------------------------------------------------------------- inbox
@@ -65,7 +71,11 @@ def parse_inbox_file(path: Path) -> Source | None:
             url = m.group(0)
             break
     if not url:
-        return None
+        # 没有链接：本地素材（录音转写等），把首行当标题
+        title = next((ln.lstrip("# ").strip() for ln in lines if ln and not ln.startswith("#")),
+                     path.stem)
+        return Source(kind="local", url="", title=title,
+                      notes=" | ".join(ln for ln in lines if ln and not ln.startswith("#"))[:300])
     # 链接所在行之后的非空行作为备注
     idx = next(i for i, ln in enumerate(lines) if url in ln)
     notes = " ".join(ln for ln in lines[idx + 1:] if ln and not ln.startswith("#"))
@@ -78,17 +88,45 @@ def parse_inbox_file(path: Path) -> Source | None:
 
 
 def scan_inbox(inbox_dir: Path) -> list[Event]:
+    """一个 stem 一组：主文件（.md 优先）+ 同名转写附件。
+
+    例：`David_Baker.md` + `David_Baker.srt` → 一个事件，srt 作为附件随任务复制。
+    只有 `.srt`/`.vtt` 没有主文件时，也视为本地素材。
+    """
     out: list[Event] = []
     if not inbox_dir.is_dir():
         return out
-    for p in sorted(inbox_dir.iterdir()):
-        if not p.is_file() or p.name.startswith(".") or p.suffix not in (".md", ".txt", ".json"):
+
+    files = [p for p in sorted(inbox_dir.iterdir())
+             if p.is_file() and not p.name.startswith(".")
+             and not p.name.upper().startswith("README")]
+    groups: dict[str, list[Path]] = {}
+    for p in files:
+        groups.setdefault(p.stem, []).append(p)
+
+    for stem, group in groups.items():
+        primary = (next((p for p in group if p.suffix.lower() == ".md"), None)
+                   or next((p for p in group if p.suffix.lower() in (".json", ".txt")), None))
+        if primary is None:
+            subs = [p for p in group if p.suffix.lower() in (".srt", ".vtt", ".json")]
+            if not subs:
+                continue
+            # 只有转写、没有主文件：文件名即标题，转写本身作为附件
+            out.append(Event(
+                source=Source(kind="local", url="", title=stem,
+                              notes=f"本地转写：{', '.join(p.name for p in subs)}"),
+                run_id=run_id_for_text(stem),
+                attachments=[p for p in group if p.suffix.lower() in TRANSCRIPT_EXT],
+            ))
             continue
-        if p.name.upper().startswith("README"):
+
+        attachments = [p for p in group if p != primary
+                       and p.suffix.lower() in TRANSCRIPT_EXT]
+        src = parse_inbox_file(primary)
+        if src is None:
             continue
-        src = parse_inbox_file(p)
-        if src:
-            out.append(Event(source=src, run_id=run_id_for(src.url)))
+        rid = run_id_for(src.url) if src.url else run_id_for_text(stem)
+        out.append(Event(source=src, run_id=rid, attachments=attachments))
     return out
 
 

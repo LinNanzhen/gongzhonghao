@@ -277,3 +277,8 @@ def normalize_url(url: str) -> str:
 
 def run_id_for(url: str) -> str:
     return hashlib.sha1(normalize_url(url).encode("utf-8")).hexdigest()[:12]
+
+
+def run_id_for_text(text: str) -> str:
+    """没有链接的本地素材：用标题/文件名派生稳定 id。"""
+    return hashlib.sha1(("local:" + (text or "").strip()).encode("utf-8")).hexdigest()[:12]
