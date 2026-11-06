@@ -82,23 +82,37 @@ python3 -m unittest orchestrator.test_state -v
 
 ## 接真实模型
 
-`providers/base.py` 定义了 `Provider` 协议，agent 只依赖它。目前只有 `stub`：
+内置 OpenAI 兼容适配器（`providers/openai_compat.py`），覆盖 DeepSeek / Kimi / 通义 / OpenAI，
+**只用标准库，无 SDK 依赖**。
 
-```python
-# providers/openai_compat.py（示例，未实现）
-class OpenAICompat(Provider):
-    name = "openai-compat"
-    def complete(self, *, task, system, prompt, max_tokens=2000, temperature=0.7):
-        ...  # POST /v1/chat/completions
+```bash
+export GZH_LLM_API_KEY=sk-...                          # 必填
+export GZH_LLM_MODEL=deepseek-chat                     # 可选，默认 deepseek-chat
+export GZH_LLM_BASE_URL=https://api.deepseek.com/v1     # 可选
+
+python3 orchestrator/loop.py tick --provider deepseek
 ```
 
-然后在 `providers/base.py` 的 `get_provider` 里注册，用 `--provider openai-compat` 选。
-agent 代码一行都不用改。
+别名都指向同一个适配器：`deepseek` · `kimi` · `moonshot` · `qwen` · `dashscope` · `openai` · `openai-compat`。
+也可以用 `--model` / `--base-url` 临时覆盖。
 
-**桩模式的约定**：输出以 `[STUB]` 开头时，agent 改用内置安全骨架，因此 end-to-end 能过门禁。
-换成真实模型后这条分支自然失效。
+| 情况 | 行为 |
+|---|---|
+| 缺 `GZH_LLM_API_KEY` | tick 直接退出码 2，不会每个 run 各报一次错 |
+| 网络错误 / 429 / 5xx | 退避重试 2 次（1s、2s） |
+| 400 / 401 / 403 | 立即失败，不重试（重试只会撞更多次） |
+| 响应无 choices / 空内容 / 非 JSON | `ProviderError`，该 run 记 `error`，停在原阶段 |
 
----
+**换厂商**只改环境变量；**换协议**才需要新增 `Provider` 子类并注册到 `get_provider` 的 `ALIASES`，
+agent 代码一行不用改。
+
+### 桩模式的约定
+
+`stub` 输出以 `[STUB]` 开头，agent 看到前缀就改用内置安全骨架，因此端到端能过门禁。
+接真实模型后这条分支自然失效。
+
+**接上模型后先跑一篇回归**：真实输出的章节结构未必合规，`critic` 会打回，
+打回 3 次转 `blocked`——这时要改的是提示词，不是放宽判据。
 
 ## 目录
 
@@ -108,9 +122,10 @@ orchestrator/
 ├── state.py           # 状态机、闸门、非法转移校验
 ├── events.py          # inbox 解析、RSS 抓取、去重
 ├── selftest.py        # 端到端自检
-├── test_state.py      # 15 个单元测试
+├── test_state.py      # 状态机单测（15 个）
+├── test_provider.py   # provider 单测（15 个，mock 网络）
 ├── agents/            # 九类智能体
-├── providers/         # LLM 适配层（stub 为默认）
+├── providers/         # LLM 适配层：stub / openai_compat（DeepSeek 等）
 ├── sources.json       # 源列表（默认空，不联网）
 ├── inbox/             # 手动投递
 └── runs/{run_id}/     # state.json（唯一真相）+ events.log + llm/
@@ -146,4 +161,5 @@ orchestrator/
 - **不做发布**：`approve publish` 之后仍要人工在编辑器里点发布。
 - **不做转写**：`transcriber` 只检查与建卡；转写仍用 whisperx / 豆包，产物放进 `案例/转写/transcript.json`。
 - **不做事实核验**：`ledger` 只建表；核验状态列由人填，机器不猜。
+- **模型输出不合规就 blocked**：critic 打回 3 次即停，不会为了让流程走下去而放宽门禁。
 - **RSS 只做发现**：抓不到就只记 warning，不影响其他 run。

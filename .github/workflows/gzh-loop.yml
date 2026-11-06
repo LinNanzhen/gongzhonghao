@@ -22,6 +22,9 @@ on:
       max_runs:
         description: "本轮最多推进几个 run"
         default: "3"
+      provider:
+        description: "LLM provider（stub 不调模型）"
+        default: "stub"
   repository_dispatch:
     types: [gzh-inbox]
 
@@ -42,6 +45,11 @@ jobs:
       GZH_BASE: ${{ github.workspace }}/cases
       PYTHONIOENCODING: utf-8
       MAX_RUNS: ${{ github.event.inputs.max_runs || '3' }}
+      PROVIDER: ${{ github.event.inputs.provider || 'stub' }}
+      # 接真实模型时在仓库 Settings → Secrets 里配 GZH_LLM_API_KEY
+      GZH_LLM_API_KEY: ${{ secrets.GZH_LLM_API_KEY }}
+      GZH_LLM_MODEL: ${{ vars.GZH_LLM_MODEL }}
+      GZH_LLM_BASE_URL: ${{ vars.GZH_LLM_BASE_URL }}
 
     steps:
       - name: 检出
@@ -53,7 +61,7 @@ jobs:
           python-version: "3.11"
 
       - name: 单元测试（快，失败即停）
-        run: python3 -m unittest orchestrator.test_state -q
+        run: python3 -m unittest orchestrator.test_state orchestrator.test_provider -q
 
       - name: 推进一轮
         run: |
@@ -62,7 +70,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.scan }}" = "false" ]; then
             SCAN_FLAG=""
           fi
-          python3 orchestrator/loop.py tick --max-runs "$MAX_RUNS" $SCAN_FLAG \
+          python3 orchestrator/loop.py tick --max-runs "$MAX_RUNS" --provider "$PROVIDER" $SCAN_FLAG \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: 当前状态

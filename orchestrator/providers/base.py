@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""LLM 适配器协议。
+"""LLM 适配器协议与工厂。
 
 agent 只依赖这个接口，不依赖具体厂商。换模型 = 新增一个 Provider 子类，
 在 loop.py 的 --provider 参数里选，不改 agent 代码。
@@ -11,7 +11,7 @@ from typing import Protocol, runtime_checkable
 
 
 class ProviderError(RuntimeError):
-    """模型调用失败（含限流、超时、返回不可用）。"""
+    """模型调用失败（含限流、超时、鉴权、返回不可用）。"""
 
 
 @runtime_checkable
@@ -24,8 +24,35 @@ class Provider(Protocol):
         ...
 
 
+# 别名 → 规范名
+ALIASES = {
+    "stub": "stub",
+    "openai": "openai-compat",
+    "openai-compat": "openai-compat",
+    "openai_compat": "openai-compat",
+    "deepseek": "openai-compat",
+    "kimi": "openai-compat",
+    "moonshot": "openai-compat",
+    "qwen": "openai-compat",
+    "dashscope": "openai-compat",
+}
+
+
 def get_provider(name: str = "stub", **kwargs) -> Provider:
-    if name == "stub":
+    """按名字构造 provider。kwargs 只透传给需要的实现。
+
+    可用名字：stub / openai-compat（别名 deepseek、kimi、qwen…）
+    """
+    key = ALIASES.get((name or "stub").strip().lower())
+    if key is None:
+        raise ProviderError(
+            f"未知 provider：{name}（可用：{', '.join(sorted(set(ALIASES)))}）"
+        )
+
+    if key == "stub":
         from .stub import StubProvider
-        return StubProvider(**kwargs)
-    raise ProviderError(f"未知 provider：{name}（可用：stub）")
+        return StubProvider(**{k: v for k, v in kwargs.items() if k == "noise"})
+
+    from .openai_compat import OpenAICompatProvider
+    allowed = ("base_url", "api_key", "model", "timeout", "max_retries", "backoff")
+    return OpenAICompatProvider(**{k: v for k, v in kwargs.items() if k in allowed and v is not None})

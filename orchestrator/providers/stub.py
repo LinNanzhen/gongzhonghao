@@ -30,7 +30,7 @@ STUB_RESPONSES: dict[str, str] = {
 class StubProvider(Provider):
     name = "stub"
 
-    def __init__(self, noise: str = ""):
+    def __init__(self, noise: str = "", **_: object):
         self.noise = noise
 
     def complete(self, *, task: str, system: str, prompt: str,

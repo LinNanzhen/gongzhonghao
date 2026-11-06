@@ -137,7 +137,13 @@ def step(store: RunStore, run: Run, provider, *, dry_run: bool, render: bool) ->
 
 def cmd_tick(args) -> int:
     store = RunStore(HERE / "runs")
-    provider = get_provider(args.provider)
+    pkw = {k: getattr(args, k) for k in ("model", "base_url") if getattr(args, k, "")}
+    provider = get_provider(args.provider, **pkw)
+
+    # 真实 provider 缺 key 时提前失败，避免每个 run 各报一次错
+    if args.provider not in ("stub",) and not getattr(provider, "api_key", ""):
+        print("缺少 API key：请设置 GZH_LLM_API_KEY（或改用 --provider stub）", file=sys.stderr)
+        return 2
 
     collected = list(ev.scan_inbox(HERE / "inbox"))
     warnings: list[str] = []
@@ -276,7 +282,11 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--max-runs", type=int, default=5, help="本轮最多推进几个 run")
     t.add_argument("--render", action="store_true", help="排版时跑三档 Chrome 渲染")
     t.add_argument("--dry-run", action="store_true", help="只打印计划，不写文件")
-    t.add_argument("--provider", default="stub", help="LLM provider（默认 stub）")
+    t.add_argument("--provider", default="stub",
+                   help="LLM provider：stub / openai-compat（别名 deepseek、kimi、qwen）")
+    t.add_argument("--model", default="", help="模型名；默认取 GZH_LLM_MODEL")
+    t.add_argument("--base-url", default="", dest="base_url",
+                   help="OpenAI 兼容端点；默认取 GZH_LLM_BASE_URL")
     t.set_defaults(func=cmd_tick)
 
     s = sub.add_parser("submit", help="手动建任务")
