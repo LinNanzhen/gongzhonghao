@@ -117,6 +117,28 @@ agent 代码一行不用改。
 **接上模型后先跑一篇回归**：真实输出的章节结构未必合规，`critic` 会打回，
 打回 3 次转 `blocked`——这时要改的是提示词，不是放宽判据。
 
+## 全自动到什么程度
+
+`policy.json` 控制自动化等级，改文件即可，不用改代码：
+
+| 环节 | 默认 | 说明 |
+|---|---|---|
+| 发现素材 | 自动 | RSS 扫描 + inbox 投递 |
+| 补标题 | 自动 | oEmbed 取标题与频道 |
+| 选题 | **自动**（`auto_approve.topic: true`） | scout 用模型填满五项后直接进入转写 |
+| 转写 | 半自动 | 见下：飞书导出，或带 cookies 的 yt-dlp |
+| 台账/研究/写作/体检/排版/质检 | 自动 | 打回超 3 次转 blocked |
+| 发布 | **人工** | 停在 `awaiting_publish`，`auto_approve.publish` 默认关闭 |
+
+自动抓字幕需要 cookies——YouTube 对机房 IP 要求登录验证：
+
+```bash
+# 浏览器装 "Get cookies.txt LOCALLY" 插件，登录 YouTube 后导出 youtube.com 的 cookies
+gh secret set YT_COOKIES --repo <owner>/<repo> < cookies.txt
+```
+
+没有 cookies 时不会静默失败：`transcriber` 落 `blocked`，`转写/yt-dlp.log` 里有 yt-dlp 的原始报错。
+
 ## 转写稿怎么进来
 
 云端不跑转写引擎，但**能直接吃飞书妙记的导出**：

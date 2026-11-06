@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -43,8 +44,12 @@ def fetch_subtitles(url: str, out_dir: Path, *, langs: str = DEFAULT_LANGS,
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        exe,
+    cmd = [exe]
+    # YouTube 对机房 IP 会要求登录验证；有 cookies 文件就带上
+    cookies = os.environ.get("YT_COOKIES_FILE", "")
+    if cookies and Path(cookies).exists():
+        cmd += ["--cookies", cookies]
+    cmd += [
         "--skip-download",
         "--write-subs",
         "--write-auto-subs",

@@ -70,6 +70,7 @@ jobs:
       GZH_LLM_API_KEY: ${{ secrets.GZH_LLM_API_KEY || secrets.DEEPSEEK }}
       GZH_LLM_MODEL: ${{ github.event.inputs.model || vars.GZH_LLM_MODEL }}
       GZH_LLM_BASE_URL: ${{ vars.GZH_LLM_BASE_URL }}
+      YT_COOKIES_FILE: /tmp/yt-cookies.txt
 
     steps:
       - name: 检出
@@ -82,6 +83,17 @@ jobs:
 
       - name: 单元测试（快，失败即停）
         run: python3 -m unittest orchestrator.test_state orchestrator.test_provider -q
+
+      - name: 准备 YouTube cookies（可选）
+        run: |
+          if [ -n "$YT_COOKIES" ]; then
+            printf '%s' "$YT_COOKIES" > /tmp/yt-cookies.txt
+            echo "cookies 已写入（$(wc -l < /tmp/yt-cookies.txt) 行）"
+          else
+            echo "未配置 YT_COOKIES，自动抓字幕时会退回 blocked"
+          fi
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
 
       - name: 安装转写工具
         run: |
