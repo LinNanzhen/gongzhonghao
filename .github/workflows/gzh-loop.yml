@@ -34,6 +34,14 @@ on:
         description: "只做一次模型连通性自检，不推进任务"
         type: boolean
         default: false
+      approve_run_id:
+        description: "放行指定 run（留空则正常推进）"
+        default: ""
+      approve_gate:
+        description: "放行的闸门（选 none 表示不放行）"
+        type: choice
+        default: none
+        options: [none, topic, publish]
   repository_dispatch:
     types: [gzh-inbox]
 
@@ -55,6 +63,8 @@ jobs:
       PYTHONIOENCODING: utf-8
       MAX_RUNS: ${{ github.event.inputs.max_runs || '3' }}
       PROVIDER: ${{ github.event.inputs.provider || 'stub' }}
+      RUN_ID: ${{ github.event.inputs.approve_run_id }}
+      GATE: ${{ github.event.inputs.approve_gate }}
       # 接真实模型时在仓库 Settings → Secrets 里配 GZH_LLM_API_KEY
       # 推荐 GZH_LLM_API_KEY；历史仓库里若叫 DEEPSEEK 也能取到
       GZH_LLM_API_KEY: ${{ secrets.GZH_LLM_API_KEY || secrets.DEEPSEEK }}
@@ -76,6 +86,13 @@ jobs:
       - name: 模型自检（可选）
         if: inputs.smoke == true
         run: python3 orchestrator/loop.py ping --provider "$PROVIDER"
+
+      - name: 人工放行（可选）
+        if: inputs.approve_run_id != '' && inputs.approve_gate != 'none'
+        run: |
+          echo "放行 $RUN_ID 的 $GATE 闸门"
+          python3 orchestrator/loop.py approve --run-id "$RUN_ID" --gate "$GATE" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: 推进一轮
         if: inputs.smoke != true
