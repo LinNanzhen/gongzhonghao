@@ -40,6 +40,21 @@ class Context:
             return
         (self.artifact_dir() / f"{stage}.txt").write_text(text, encoding="utf-8")
 
+    def artifact_path(self, key: str) -> Path | None:
+        """把 `run.artifacts[key]` 解析成本机路径。
+
+        新契约（T3c）：artifacts 存**相对 case_dir** 的路径，云端产物拉回本地
+        也能继续跑；同时兼容早期写入的绝对路径，以及云端 `/home/runner/...`
+        这类在本机不存在的绝对路径（按文件名落到当前案例目录）。
+        """
+        raw = self.run.artifacts.get(key)
+        if not raw:
+            return None
+        p = Path(raw)
+        if not p.is_absolute():
+            return self.case_dir / p
+        return p if p.exists() else self.case_dir / p.name
+
 
 @dataclass
 class Result:

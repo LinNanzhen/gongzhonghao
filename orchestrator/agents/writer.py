@@ -9,10 +9,12 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from pathlib import Path
 
 from .base import Agent, Context, Result, gather_context, guest_of
+from ..versions import next_version
 
 def transcript_excerpt(case_dir: Path, limit: int = 9000) -> str:
     """转写原文节选，带时间戳，供模型引用。"""
@@ -95,7 +97,13 @@ class Writer(Agent):
     stage = "researched"
 
     def run(self, ctx: Context) -> Result:
-        md = ctx.case_dir / f"{guest_of(ctx.case_dir)}_人味版.md"
+        guest = guest_of(ctx.case_dir)
+        # 版本只增不删（T3b）：重跑另存 `_vN`，旧稿保留供 diff
+        n = next_version(ctx.case_dir, rf"{re.escape(guest)}_人味版_v(\d+)\.md")
+        legacy = ctx.case_dir / f"{guest}_人味版.md"
+        if n == 1 and legacy.exists():
+            n = 2   # 历史命名视为已存在的 v1，不覆盖
+        md = ctx.case_dir / f"{guest}_人味版_v{n}.md"
         llm = ctx.provider.complete(
             task="writer.draft",
             system=(
@@ -130,4 +138,6 @@ class Writer(Agent):
 
         text = SKELETON if llm.lstrip().startswith("[STUB]") else llm.strip() + "\n"
         self.write(ctx, md, text)
-        return Result.ok(f"正文：{md.name}", artifacts={"draft": str(md)}, to="drafted")
+        return Result.ok(f"正文：{md.name}（v{n}）",
+                         artifacts={"draft": md.relative_to(ctx.case_dir).as_posix()},
+                         to="drafted")
