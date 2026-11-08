@@ -45,7 +45,7 @@ python3 gzh_pipeline.py --md x.md --name x --check-links
 | `--prev` | 否 | 文末「上一篇」导航 |
 | `--outdir` | 否 | 输出目录，默认当前目录 |
 | `--check-links` | 否 | 联网 HEAD 校验图片外链 |
-| `--skip-render` | 否 | 跳过 Chrome 渲染验收（仅质检，快） |
+| `--skip-render` | 否 | 跳过 Chrome 渲染验收（仅质检，快）；此时判定必为 INCOMPLETE，不能放行 |
 
 ## 写稿约定（md 模式）
 
@@ -112,6 +112,20 @@ python3 gzh_pipeline.py --md x.md --name x --check-links
 
 任一 FAIL 会以退出码 1 结束，报告写入 `{name}_质检报告.md`，不要带 FAIL 放行。
 
+### 判定契约（T1）
+
+质检报告在 `- 总判定：` 的下一行写机器可读的 `- 判定码：`（纯文本、不加星号），
+gatekeeper 只认这一行：
+
+| 判定码 | 退出码 | 含义 | 门禁动作 |
+|---|---|---|---|
+| `PASS` | 0 | 质检门禁全过 **且**三档渲染验收真的跑过 | 放行到人工发布闸门 |
+| `FAIL` | 1 | 质检门禁 FAIL，或任一 viewport 渲染测量/截图报错、溢出 | 打回 composer 重排 |
+| `INCOMPLETE` | 3 | 渲染验收没跑：`--skip-render` / 找不到 Chrome / Chrome 在但没产出任何 viewport 结果 | blocked：本地补跑渲染后重生成报告，**不得放行** |
+
+**未完成 ≠ 通过。** 以前 `--skip-render` 仍写"总判定：通过"，是假通过；
+现在只跳过渲染，判定一律 `INCOMPLETE`。
+
 ## 渲染验收（自动）
 
 用本机 Chrome headless 在 **375 / 390 / 430** 三档视口：
@@ -120,7 +134,9 @@ python3 gzh_pipeline.py --md x.md --name x --check-links
 - 图片比例检测：`naturalWidth/naturalHeight` 与 CSS 显示比例误差 >3% 或未加载即 FAIL
 - 整页截图：按实际页高导出 PNG（默认 1x；`--force-device-scale-factor=2` 可出 2x 长图，SOP 要求长图 2x）
 
-渲染依赖系统 Chrome（自动探测 `/Applications/Google Chrome.app` 等路径）。找不到 Chrome 时跳过渲染并在报告中注明，不影响质检。
+渲染依赖系统 Chrome（自动探测 `/Applications/Google Chrome.app` 等路径）。
+找不到 Chrome、或用了 `--skip-render`、或 Chrome 存在但没有任何 viewport 产出结果时，
+报告判定为 `INCOMPLETE`（退出码 3）——**渲染验收未完成不得放行**，需在本地补跑。
 
 ## 字幕长图一键命令（gzh_subtitle.py，集成 native-subtitle-quote-image skill）
 

@@ -13,6 +13,12 @@
 流程：解析正文 → 组装双 HTML → 质检门禁 → Chrome headless 三档渲染验收 → 报告
 依赖：仅 Python 3 标准库；渲染验收需要本机 Chrome（自动探测路径）。
 
+判定契约（T1，机器可读行 `- 判定码：`）：
+  PASS        退出码 0  质检门禁全过，且三档渲染验收真的跑过
+  FAIL        退出码 1  质检门禁有 FAIL，或任一 viewport 渲染验收失败
+  INCOMPLETE  退出码 3  渲染验收没跑（--skip-render / 无 Chrome / 无任何 viewport 结果）
+              —— 未完成 ≠ 通过，不得作为放行依据；补跑渲染后重生成报告
+
 用法示例：
   python3 gzh_pipeline.py --md 布林约尔松AI就业观_人味版.md \\
       --name 布林约尔松AI就业观 --title "AI 不会平均地消灭工作" \\
@@ -29,12 +35,33 @@ import html
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.request
 from pathlib import Path
+
+# ---------------------------------------------------------------- 判定契约
+# 判定值单一来源：orchestrator/verdict.py（与 gatekeeper 共用，T1c）。
+# 本脚本也可能被单独拷出去跑，所以 import 失败时就地兜底，不让工具直接挂掉。
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+try:  # pragma: no cover - 兜底分支只在脱离仓库单跑时触发
+    from orchestrator.verdict import FAIL, INCOMPLETE, PASS
+except ImportError:  # pragma: no cover
+    PASS, FAIL, INCOMPLETE = "PASS", "FAIL", "INCOMPLETE"
+
+# 总判定（人类可读）与退出码：0=通过，1=未通过（质检门禁 FAIL），3=未完成。
+TOTAL_LABEL = {
+    PASS: "**通过**",
+    FAIL: "**未通过（需修正）**",
+    INCOMPLETE: "**未完成（渲染验收未执行）**",
+}
+EXIT_CODE = {PASS: 0, FAIL: 1, INCOMPLETE: 3}
+
 
 # ---------------------------------------------------------------- 视觉参数
 VISUAL = {
@@ -112,6 +139,19 @@ def find_chrome():
         if os.path.exists(c):
             return c
     return None
+
+
+def chrome_sandbox_args():
+    """headless Chrome 的启动参数补丁，返回 (参数列表, profile 目录)。
+
+    受限环境（DSH 文件沙箱 / CI 容器）里 Chrome 直接起 headless 会报
+    `Failed to create a unique user data directory for headless`，
+    随后 `--dump-dom` 退出 0 但输出为空 → 渲染验收永远"未捕获测量结果"。
+    显式给每个调用一个独立 profile 并关闭 Chrome 自带沙箱后即可正常输出。
+    调用方负责在 finally 里 shutil.rmtree 掉 profile 目录（不并发共用、不锁）。
+    """
+    profile = tempfile.mkdtemp(prefix="gzh-chrome-")
+    return ["--no-sandbox", f"--user-data-dir={profile}"], profile
 
 
 def p(text, style=VISUAL["p"]):
@@ -462,14 +502,16 @@ def render_measure(chrome, body_html, viewport, timeout_s=60):
     tmp = tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8")
     tmp.write(meas)
     tmp.close()
+    sandbox_args, profile = chrome_sandbox_args()
     try:
         r = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--virtual-time-budget=20000",
-             "--dump-dom", "file://" + tmp.name],
+            [chrome, "--headless=new", "--disable-gpu", *sandbox_args,
+             "--virtual-time-budget=20000", "--dump-dom", "file://" + tmp.name],
             capture_output=True, text=True, timeout=timeout_s)
         dom = r.stdout
     finally:
         os.unlink(tmp.name)
+        shutil.rmtree(profile, ignore_errors=True)
     m = re.search(r"RESULT (.*)", dom)
     if not m:
         return {"error": "未捕获测量结果", "dom_head": dom[:200]}
@@ -498,9 +540,10 @@ def render_shot(chrome, body_html, viewport, out_png, scale=1):
         f'word-wrap:break-word;overflow-wrap:break-word;">\n{body_html}\n</section></body></html>'
     )
     tmp.close()
+    sandbox_args, profile = chrome_sandbox_args()
     try:
         r = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+            [chrome, "--headless=new", "--disable-gpu", *sandbox_args, "--hide-scrollbars",
              f"--force-device-scale-factor={scale}", f"--window-size={viewport},{h}",
              "--virtual-time-budget=20000", f"--screenshot={out_png}", "file://" + tmp.name],
             capture_output=True, text=True, timeout=60)
@@ -508,6 +551,7 @@ def render_shot(chrome, body_html, viewport, out_png, scale=1):
         return ok, "" if ok else r.stderr[:300]
     finally:
         os.unlink(tmp.name)
+        shutil.rmtree(profile, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- 主流程
@@ -599,12 +643,21 @@ def main():
             print("[PASS] 全部外链可达")
 
     # 5. 渲染验收
+    # render_state 记录"渲染到底跑没跑成"，它单独决定 INCOMPLETE：
+    #   ok       = 三档都出结果且无 FAIL
+    #   skipped  = --skip-render（只跳过渲染，质检照旧）
+    #   no_chrome= 本机找不到 Chrome（以前只 WARN 然后判通过 → 假通过）
+    #   empty    = 找到 Chrome 但没有任何 viewport 产出结果
+    #   fail     = 有 viewport 测量/截图报错或验收 FAIL
     render_rows = []
+    render_state = "ok"
     chrome = find_chrome()
     if args.skip_render:
+        render_state = "skipped"
         print("\n（已跳过 Chrome 渲染验收）")
     elif not chrome:
-        print("\n[WARN] 未找到 Chrome，跳过渲染验收；可安装 Chrome 后重跑")
+        render_state = "no_chrome"
+        print("\n[WARN] 未找到 Chrome，渲染验收未执行（判定为未完成，不得放行）")
     else:
         print(f"\n—— Chrome 渲染验收（{chrome.split('/')[-1]}）——")
         for vp in VIEWPORTS:
@@ -612,6 +665,7 @@ def main():
             if "error" in m:
                 print(f"[{vp}px] FAIL {m['error']}")
                 all_ok = False
+                render_state = "fail"
                 continue
             shot = outdir / f"{args.name}_渲染_{vp}.png"
             ok, err = render_shot(chrome, body_html, vp, str(shot))
@@ -631,19 +685,33 @@ def main():
                 notes.append("截图失败: " + err[:80])
             if status == "FAIL":
                 all_ok = False
+                render_state = "fail"
             render_rows.append({
                 "viewport": vp, "page_h": m["page_h"], "shot": str(shot), "status": status,
                 "overflow": m["overflow"], "img_issues": m["img_issues"],
                 "shot_ok": ok, "notes": "; ".join(notes),
             })
             print(f"[{status}] {vp}px  页高 {m['page_h']}px  溢出[{m['overflow'][:40]}]  图片[{m['img_issues'][:60]}]  截图{'✓' if ok else '✗'}")
+        if render_state != "fail" and not render_rows:
+            render_state = "empty"
 
-    # 6. 质检报告
+    # 6. 判定：质检门禁 FAIL 优先（确定性的坏），其次才是"渲染没跑完"
+    if not all_ok:
+        verdict = FAIL
+    elif render_state != "ok":
+        verdict = INCOMPLETE
+    else:
+        verdict = PASS
+    print(f"\n—— 判定：{verdict}（退出码 {EXIT_CODE[verdict]}）——")
+
+    # 7. 质检报告
     report_path = outdir / f"{args.name}_质检报告.md"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(f"# 质检报告：{args.name}\n\n")
         f.write(f"- 生成时间：{time.strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"- 总判定：{'**通过**' if all_ok else '**未通过（需修正）**'}\n\n")
+        f.write(f"- 总判定：{TOTAL_LABEL[verdict]}\n")
+        # 机器可读判定码：gatekeeper 只认这一行（纯文本，不加星号）
+        f.write(f"- 判定码：{verdict}\n\n")
         f.write("## 质检门禁\n\n| 检查项 | 结果 | 详情 |\n|---|---|---|\n")
         for name, res, detail in report:
             f.write(f"| {name} | {'✅' if res=='ok' else '⚠️' if res=='warn' else '❌'} | {detail} |\n")
@@ -651,19 +719,29 @@ def main():
             bad = qa_links(body_html)
             f.write(f"| 外链可达性 | {'✅' if not bad else '❌'} | {'全部可达' if not bad else '；'.join(bad)} |\n")
         f.write("\n## 渲染验收\n\n")
-        if not render_rows and not args.skip_render and chrome:
-            f.write("渲染验收失败或未执行。\n")
-        elif args.skip_render:
-            f.write("已跳过（--skip-render）。\n")
+        if render_state == "skipped":
+            f.write("已跳过（--skip-render）。**渲染验收未执行，本报告不能作为放行依据。**\n")
+        elif render_state == "no_chrome":
+            f.write("未执行：本机未找到 Chrome。**渲染验收未执行，本报告不能作为放行依据。**\n")
+        elif render_state == "empty" or not render_rows:
+            f.write("未执行：Chrome 已找到，但没有任何 viewport 产出结果。**渲染验收未完成，不能放行。**\n")
         else:
             f.write("| 视口 | 页高 | 横向溢出 | 图片比例 | 截图 |\n|---|---|---|---|---|\n")
             for r in render_rows:
                 f.write(f"| {r['viewport']}px | {r['page_h']}px | {r['overflow'] or '无'} | {r['img_issues'] or '正常'} | {'✓' if r['shot_ok'] else '✗'} |\n")
             f.write("\n> 溢出 = 元素 scrollWidth 超出容器 clientWidth；图片 = natural 比例与 CSS 显示比例误差 >3% 或未加载。\n")
+        if render_state != "ok":
+            f.write(f"\n> 判定码 {verdict}：渲染验收未完成 ≠ 通过。"
+                    "本地补跑三档渲染（去掉 --skip-render）后重生成报告，再放行。\n")
     print(f"\n✓ 质检报告 {report_path}")
-    print(f"\n总判定：{'通过 ✅' if all_ok else '未通过 ❌ 请按 FAIL 项修正后重跑'}")
+    summary = {
+        PASS: "通过 ✅",
+        FAIL: "未通过 ❌ 请按 FAIL 项修正后重跑",
+        INCOMPLETE: "未完成 ⚠️ 渲染验收未执行，需本地补跑渲染后重生成报告（不得放行）",
+    }[verdict]
+    print(f"\n总判定：{summary}")
 
-    return 0 if all_ok else 1
+    return EXIT_CODE[verdict]
 
 
 if __name__ == "__main__":

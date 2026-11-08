@@ -1,0 +1,132 @@
+name: gzh-approve
+
+# 人工闸门审批入口（T4c，best-effort）
+#
+# ⚠️ 未在真实仓库实测：本机没有仓库 secret，也没有在 GitHub 上真正手动触发过一次。
+#    启用前必须：
+#      1) 在仓库 Settings → Secrets 配置 GZH_DISPATCH_TOKEN（PAT，需 repo 权限）。
+#         用内置 GITHUB_TOKEN 提交回写可能受反递归限制（社区有失效报告），故用 PAT；
+#      2) 在 Actions 页面手动 Run workflow 一次，确认 loop.py approve 生效、
+#         有 commit 回写、run 状态真的前进了。
+#    在跑通那一次之前，不要把"文件已提交"当成"审批入口已验证"。
+#
+# 触发方式（两种等效）：
+#   1) Actions 页面 Run workflow：填 run_id + gate；
+#   2) 在 Issue 里评论：`/approve <run_id> <topic|publish>`
+#      —— 仅 author_association ∈ {OWNER, MEMBER} 生效，其他人的评论直接跳过。
+#
+# 设计约束（与 gzh-loop 一致）：审批只"放行闸门"，不发布任何内容。
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "要放行的 run_id（如 1a2b3c4d5e6f）"
+        required: true
+      gate:
+        description: "放行的闸门"
+        required: true
+        type: choice
+        options: [topic, publish]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: gzh-approve
+  cancel-in-progress: false
+
+jobs:
+  approve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # issue_comment 只接受 OWNER/MEMBER 的 /approve 指令；其余评论不进入 job
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '/approve ') &&
+       contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association))
+    env:
+      GZH_DISPATCH_TOKEN: ${{ secrets.GZH_DISPATCH_TOKEN }}
+      GZH_BASE: ${{ github.workspace }}/cases
+
+    steps:
+      - name: 解析审批指令
+        id: parse
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_RUN_ID: ${{ inputs.run_id }}
+          DISPATCH_GATE: ${{ inputs.gate }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -eu
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RUN_ID="$DISPATCH_RUN_ID"
+            GATE="$DISPATCH_GATE"
+          else
+            # 从评论里抽第一条 `/approve <run_id> <topic|publish>`
+            LINE=$(printf '%s\n' "$COMMENT_BODY" \
+              | grep -Eo '/approve[[:space:]]+[A-Za-z0-9_-]+[[:space:]]+(topic|publish)' \
+              | head -n1 || true)
+            if [ -z "$LINE" ]; then
+              echo "::error::评论里没找到 /approve <run_id> <topic|publish>，什么也没做"
+              exit 1
+            fi
+            RUN_ID=$(printf '%s\n' "$LINE" | awk '{print $2}')
+            GATE=$(printf '%s\n' "$LINE" | awk '{print $3}')
+          fi
+          case "${GATE:-}" in
+            topic|publish) ;;
+            *) echo "::error::gate 只能是 topic 或 publish（收到：${GATE:-空}）"; exit 1 ;;
+          esac
+          if [ -z "${RUN_ID:-}" ]; then
+            echo "::error::run_id 为空"
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "gate=$GATE" >> "$GITHUB_OUTPUT"
+          echo "解析结果：run_id=$RUN_ID gate=$GATE"
+
+      - name: 检查 PAT
+        run: |
+          set -eu
+          if [ -z "${GZH_DISPATCH_TOKEN:-}" ]; then
+            echo "::error::未配置 GZH_DISPATCH_TOKEN。审批需要 PAT 才能提交回写；"
+            echo "::error::请在仓库 Settings → Secrets 配置后重跑。本次未放行任何 run。"
+            exit 1
+          fi
+
+      - name: 检出
+        uses: actions/checkout@v7
+        with:
+          # 用 PAT 检出/推送，避免内置 token 的权限与反递归限制
+          token: ${{ secrets.GZH_DISPATCH_TOKEN }}
+
+      - name: Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: 执行放行
+        run: |
+          set -eu
+          python3 orchestrator/loop.py approve \
+            --run-id "${{ steps.parse.outputs.run_id }}" \
+            --gate "${{ steps.parse.outputs.gate }}" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: 提交回写
+        run: |
+          set -eu
+          git config user.name  "gzh-approve[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "无变更（该 run 的闸门可能已经放行过）"
+          else
+            git commit -m "chore(approve): ${{ steps.parse.outputs.gate }} 放行 ${{ steps.parse.outputs.run_id }}"
+            git push
+          fi
