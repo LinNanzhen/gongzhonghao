@@ -61,6 +61,12 @@ class OpenAICompatProvider(Provider):
         self.max_retries = max_retries
         self.backoff = backoff
         self.max_output = max_output
+        # T5a：成本记账。不改 complete() 签名（9 个调用点不用动），失败/成功都只
+        # 更新实例属性；字段缺失如实标 None，不假装 0。
+        self.last_usage: dict[str, int | None] | None = None
+        self.usage_total: dict[str, int] = {
+            "input": 0, "output": 0, "total": 0, "calls": 0,
+        }
 
     # ------------------------------------------------------------ 对外
     def complete(self, *, task: str, system: str, prompt: str,
@@ -95,6 +101,28 @@ class OpenAICompatProvider(Provider):
                 budget = min(budget * 2, self.max_output)
 
     # ------------------------------------------------------------ 内部
+    def _record_usage(self, usage: object) -> None:
+        """记一次成功调用的 token 用量（T5a）。
+
+        - `last_usage`：本次 input/output/total；供应商没给的字段为 None（如实标注）；
+        - `usage_total`：累计 input/output/total/calls；没回 usage 时 calls 照加、
+          token 不加，`loop.py status` 据此把该 run 标成"未上报"而不是假装 0。
+        """
+        data = usage if isinstance(usage, dict) else {}
+        inp = _as_int(data.get("prompt_tokens", data.get("input_tokens")))
+        out = _as_int(data.get("completion_tokens", data.get("output_tokens")))
+        total = _as_int(data.get("total_tokens"))
+        if total is None and (inp is not None or out is not None):
+            total = (inp or 0) + (out or 0)
+
+        self.last_usage = {"input": inp, "output": out, "total": total}
+        self.usage_total["calls"] += 1
+        if total is None:
+            return
+        for key, value in (("input", inp), ("output", out), ("total", total)):
+            if value is not None:
+                self.usage_total[key] += value
+
     def _with_retry(self, url: str, body: bytes, task: str) -> str:
         last: Exception | None = None
         for attempt in range(self.max_retries + 1):
@@ -143,6 +171,7 @@ class OpenAICompatProvider(Provider):
             if reasoning and finish == "length":
                 raise _LengthExhausted(f"推理 {len(reasoning)} 字占满预算")
             raise ProviderError(f"{task}：返回空内容（finish_reason={finish}）")
+        self._record_usage(data.get("usage"))
         return content
 
 
@@ -152,6 +181,16 @@ class _Retryable(Exception):
 
 class _LengthExhausted(Exception):
     """内部标记：预算被推理占满，需要加倍。"""
+
+
+def _as_int(value: object) -> int | None:
+    """usage 字段转 int；缺失/非法一律 None（如实标注，不当 0）。"""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _safe_snippet(text: str, limit: int = 200) -> str:

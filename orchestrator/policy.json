@@ -1,17 +1,14 @@
 {
   "_comment": "编排策略。改这里即改变自动化程度，不需要改代码。",
   "auto_approve": {
-    "topic": true,
-    "publish": false
+    "topic": true
   },
   "auto_transcribe": {
-    "enabled": true,
-    "source": "youtube",
-    "max_minutes": 90
+    "enabled": true
   },
   "notes": {
     "auto_approve.topic": "选题自动放行：scout 用模型填五项后直接进入转写",
-    "auto_approve.publish": "发布不自动：质检通过后停在 awaiting_publish，等人粘贴",
-    "auto_transcribe.enabled": "缺转写时用 yt-dlp 抓 YouTube 字幕；失败仍 blocked"
+    "auto_approve.publish": "发布永不自动：代码不读取该键（auto_approve.publish 已删除，写了也不生效），发布只能由人 approve --gate publish",
+    "auto_transcribe.enabled": "缺转写时用 yt-dlp 抓 YouTube 字幕；失败仍 blocked（source/max_minutes 是死配置，已删除）"
   }
 }

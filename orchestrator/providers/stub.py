@@ -32,6 +32,11 @@ class StubProvider(Provider):
 
     def __init__(self, noise: str = "", **_: object):
         self.noise = noise
+        # T5a：与真实 provider 对齐的成本属性——桩不联网，没有真实用量。
+        self.last_usage: dict | None = None
+        self.usage_total: dict[str, int] = {
+            "input": 0, "output": 0, "total": 0, "calls": 0,
+        }
 
     def complete(self, *, task: str, system: str, prompt: str,
                  max_tokens: int = 2000, temperature: float = 0.7) -> str:
