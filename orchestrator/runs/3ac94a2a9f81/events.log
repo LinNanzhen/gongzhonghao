@@ -1,0 +1,30 @@
+2026-11-09T04:38:25+00:00	create	cli	https://www.youtube.com/watch?v=aR20FWCCjAs
+2026-11-09T04:38:25+00:00	case_dir	14_伊利亚苏茨克维尔_案例
+2026-11-09T04:38:46+00:00	advance	scout	triaged	usage	input=160	output=447	total=607	calls=1
+2026-11-09T04:38:46+00:00	auto_approve	topic
+2026-11-09T04:38:46+00:00	advance	transcriber	transcribed
+2026-11-09T04:38:46+00:00	advance	ledger	ledgered
+2026-11-09T04:38:50+00:00	advance	researcher	researched	usage	input=1053	output=366	total=1419	calls=1
+2026-11-09T04:40:53+00:00	advance	writer	drafted	usage	input=3996	output=8192	total=12188	calls=1
+2026-11-09T04:40:53+00:00	advance	critic	critiqued
+2026-11-09T04:41:01+00:00	rework	composer	流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v1_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:41:07+00:00	rework	composer	流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v2_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:41:12+00:00	rework	composer	流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v3_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:41:17+00:00	rework	composer	流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v4_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:44:18+00:00	resume	blocked	修 390px 测量误报后重排
+2026-11-09T04:44:26+00:00	advance	composer	composed
+2026-11-09T04:44:35+00:00	advance	gatekeeper	qc_passed
+2026-11-09T04:44:35+00:00	advance	gatekeeper	awaiting_publish
+2026-11-09T04:48:32+00:00	rewind	researched	修渲染保真+writer预算后重跑
+2026-11-09T04:49:31+00:00	advance	writer	drafted	usage	input=4045	output=7528	total=11573	calls=1
+2026-11-09T04:49:31+00:00	advance	critic	critiqued
+2026-11-09T04:49:39+00:00	rework	composer	流水线 FAIL：[PASS] 390px  页高 5830px  溢出[]  图片[]  截图✓ / [PASS] 430px  页高 5539px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v6_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:49:48+00:00	rework	composer	流水线 FAIL：[PASS] 390px  页高 5830px  溢出[]  图片[]  截图✓ / [PASS] 430px  页高 5539px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v7_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:49:58+00:00	rework	composer	流水线 FAIL：[PASS] 390px  页高 5830px  溢出[]  图片[]  截图✓ / [PASS] 430px  页高 5539px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v8_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑
+2026-11-09T04:50:31+00:00	resume	blocked	修 prompt 与禁用词矛盾后重跑
+2026-11-09T04:50:31+00:00	rewind	researched	重跑 writer
+2026-11-09T04:51:25+00:00	advance	writer	drafted	usage	input=4070	output=7085	total=11155	calls=1
+2026-11-09T04:51:25+00:00	advance	critic	critiqued
+2026-11-09T04:51:35+00:00	advance	composer	composed
+2026-11-09T04:51:35+00:00	advance	gatekeeper	qc_passed
+2026-11-09T04:51:35+00:00	advance	gatekeeper	awaiting_publish

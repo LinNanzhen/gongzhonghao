@@ -1,0 +1,221 @@
+{
+  "run_id": "3ac94a2a9f81",
+  "stage": "awaiting_publish",
+  "status": "active",
+  "source": {
+    "kind": "cli",
+    "url": "https://www.youtube.com/watch?v=aR20FWCCjAs",
+    "title": "伊利亚·苏茨克维尔：从规模时代走向研究时代",
+    "channel": "",
+    "notes": "",
+    "published_at": ""
+  },
+  "case_dir": "14_伊利亚苏茨克维尔_案例",
+  "artifacts": {
+    "topic_card": "选题卡_2026-11-09_伊利亚苏茨克维尔.md",
+    "material_card": "素材卡_2026-11-09_伊利亚苏茨克维尔.md",
+    "transcript": "转写/transcript.json",
+    "ledger": "事实台账_2026-11-09_伊利亚苏茨克维尔.md",
+    "research": "研究笔记_2026-11-09_伊利亚苏茨克维尔.md",
+    "draft": "伊利亚苏茨克维尔_人味版_v3.md",
+    "critique": "体检报告_2026-11-09.md",
+    "preview": "伊利亚苏茨克维尔_v9_排版预览.html",
+    "import": "伊利亚苏茨克维尔_v9_导入片段.html",
+    "qc_report": "伊利亚苏茨克维尔_v9_质检报告.md"
+  },
+  "usage": {
+    "input": 13324,
+    "output": 23618,
+    "total": 36942,
+    "calls": 5
+  },
+  "history": [
+    {
+      "at": "2026-11-09T04:38:46+00:00",
+      "from": "new",
+      "to": "triaged",
+      "agent": "scout",
+      "note": "选题卡：选题卡_2026-11-09_伊利亚苏茨克维尔.md；等待人工确认选题"
+    },
+    {
+      "at": "2026-11-09T04:38:46+00:00",
+      "from": "triaged",
+      "to": "transcribed",
+      "agent": "transcriber",
+      "note": "素材卡：素材卡_2026-11-09_伊利亚苏茨克维尔.md（片段表待人工/模型填充）"
+    },
+    {
+      "at": "2026-11-09T04:38:46+00:00",
+      "from": "transcribed",
+      "to": "ledgered",
+      "agent": "ledger",
+      "note": "台账：事实台账_2026-11-09_伊利亚苏茨克维尔.md"
+    },
+    {
+      "at": "2026-11-09T04:38:50+00:00",
+      "from": "ledgered",
+      "to": "researched",
+      "agent": "researcher",
+      "note": "研究笔记：研究笔记_2026-11-09_伊利亚苏茨克维尔.md"
+    },
+    {
+      "at": "2026-11-09T04:40:53+00:00",
+      "from": "researched",
+      "to": "drafted",
+      "agent": "writer",
+      "note": "正文：伊利亚苏茨克维尔_人味版_v1.md（v1）"
+    },
+    {
+      "at": "2026-11-09T04:40:53+00:00",
+      "from": "drafted",
+      "to": "critiqued",
+      "agent": "critic",
+      "note": "体检通过：体检报告_2026-11-09.md"
+    },
+    {
+      "at": "2026-11-09T04:41:01+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v1_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:41:07+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v2_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:41:12+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v3_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:41:17+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[FAIL] 390px  页高 4305px  溢出[P sw=394 cw=390; P sw=396 cw=390]  图片[]  截图✓ / [PASS] 430px  页高 4101px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v4_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:44:26+00:00",
+      "from": "critiqued",
+      "to": "composed",
+      "agent": "composer",
+      "note": "排版完成：伊利亚苏茨克维尔_v5（render=on）"
+    },
+    {
+      "at": "2026-11-09T04:44:35+00:00",
+      "from": "composed",
+      "to": "qc_passed",
+      "agent": "gatekeeper",
+      "note": "质检通过：伊利亚苏茨克维尔_v5_质检报告.md"
+    },
+    {
+      "at": "2026-11-09T04:44:35+00:00",
+      "from": "qc_passed",
+      "to": "awaiting_publish",
+      "agent": "gatekeeper",
+      "note": "门禁已过，停在人工发布闸门"
+    },
+    {
+      "at": "2026-11-09T04:48:32+00:00",
+      "from": "awaiting_publish",
+      "to": "researched",
+      "agent": "human",
+      "note": "rework: 人工回退：修渲染保真+writer预算后重跑"
+    },
+    {
+      "at": "2026-11-09T04:49:31+00:00",
+      "from": "researched",
+      "to": "drafted",
+      "agent": "writer",
+      "note": "正文：伊利亚苏茨克维尔_人味版_v2.md（v2）"
+    },
+    {
+      "at": "2026-11-09T04:49:31+00:00",
+      "from": "drafted",
+      "to": "critiqued",
+      "agent": "critic",
+      "note": "体检通过：体检报告_2026-11-09.md"
+    },
+    {
+      "at": "2026-11-09T04:49:39+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[PASS] 390px  页高 5830px  溢出[]  图片[]  截图✓ / [PASS] 430px  页高 5539px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v6_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:49:48+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[PASS] 390px  页高 5830px  溢出[]  图片[]  截图✓ / [PASS] 430px  页高 5539px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v7_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:49:58+00:00",
+      "from": "critiqued",
+      "to": "critiqued",
+      "agent": "composer",
+      "note": "rework: 流水线 FAIL：[PASS] 390px  页高 5830px  溢出[]  图片[]  截图✓ / [PASS] 430px  页高 5539px  溢出[]  图片[]  截图✓ /  / —— 判定：FAIL（退出码 1）—— /  / ✓ 质检报告 /Users/lnz/Desktop/公众号/14_伊利亚苏茨克维尔_案例/伊利亚苏茨克维尔_v8_质检报告.md /  / 总判定：未通过 ❌ 请按 FAIL 项修正后重跑"
+    },
+    {
+      "at": "2026-11-09T04:50:31+00:00",
+      "from": "critiqued",
+      "to": "researched",
+      "agent": "human",
+      "note": "rework: 人工回退：重跑 writer"
+    },
+    {
+      "at": "2026-11-09T04:51:25+00:00",
+      "from": "researched",
+      "to": "drafted",
+      "agent": "writer",
+      "note": "正文：伊利亚苏茨克维尔_人味版_v3.md（v3）"
+    },
+    {
+      "at": "2026-11-09T04:51:25+00:00",
+      "from": "drafted",
+      "to": "critiqued",
+      "agent": "critic",
+      "note": "体检通过：体检报告_2026-11-09.md"
+    },
+    {
+      "at": "2026-11-09T04:51:35+00:00",
+      "from": "critiqued",
+      "to": "composed",
+      "agent": "composer",
+      "note": "排版完成：伊利亚苏茨克维尔_v9（render=on）"
+    },
+    {
+      "at": "2026-11-09T04:51:35+00:00",
+      "from": "composed",
+      "to": "qc_passed",
+      "agent": "gatekeeper",
+      "note": "质检通过：伊利亚苏茨克维尔_v9_质检报告.md"
+    },
+    {
+      "at": "2026-11-09T04:51:35+00:00",
+      "from": "qc_passed",
+      "to": "awaiting_publish",
+      "agent": "gatekeeper",
+      "note": "门禁已过，停在人工发布闸门"
+    }
+  ],
+  "rework": {
+    "count": 1,
+    "last_reason": "人工回退：重跑 writer"
+  },
+  "gates": {
+    "topic": true,
+    "publish": false
+  },
+  "errors": 0,
+  "error": null,
+  "created_at": "2026-11-09T04:38:25+00:00",
+  "updated_at": "2026-11-09T04:51:35+00:00"
+}
