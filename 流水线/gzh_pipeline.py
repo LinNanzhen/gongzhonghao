@@ -451,6 +451,27 @@ def qa_links(body_html, timeout=6):
 
 
 # ---------------------------------------------------------------- 渲染验收
+
+def viewport_shell(width: int) -> str:
+    """固定宽度的预览容器：等价于 build_html 里的 body_margin，但宽度=视口宽。
+
+    为什么必须固定宽度：macOS 的 headless Chrome（当前 2026 版）`--window-size` 的
+    布局最小宽度是 500px，而 `--screenshot` 仍按 `--window-size` 输出 375/390/430 宽
+    的图——直接截会**裁掉右侧 110px**（正文被切断，且此前"跳过渲染"把这个问题完全
+    掩盖了）。把内容装进固定宽度、左对齐的容器，截图前 N px 就是真实手机宽度下的布局。
+
+    `text-spacing-trim:space-all`：Chrome 123+ 默认裁剪中日文全角标点间距，会让行尾
+    标点在 scrollWidth 上多算约 4px，误报横向溢出；微信 WebView 无此特性，故关掉，
+    使"预览图 + 溢出判定"都与微信一致。
+    """
+    return (
+        f"width:{width}px;box-sizing:border-box;margin:0;padding:20px;"
+        "background:#ffffff;color:#333333;"
+        "font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;"
+        "word-wrap:break-word;overflow-wrap:break-word;text-spacing-trim:space-all;"
+    )
+
+
 RENDER_MEASURE_JS = """
 <script>
 function gzhDone(){
@@ -492,12 +513,16 @@ window.addEventListener('load', function(){
 
 def render_measure(chrome, body_html, viewport, timeout_s=60):
     """返回 dict：vp_width, vp_scroll, page_h, overflow, img_issues"""
+    # text-spacing-trim:space-all —— 这里是在给「微信渲染器」量尺寸，不是给 Chrome 量。
+    # Chrome 123+ 默认对中日文全角标点做间距裁剪（text-spacing-trim:normal），会让行尾
+    # 全角标点（「」（）等）在 scrollWidth 上多算约 4px，在 375/390 档误报"横向溢出"；
+    # 微信 WebView 用的是没有该特性的旧内核，实际不会溢出。关掉裁剪后测量与微信一致，
+    # 而固定宽元素、不可断长串这类真溢出仍会照常命中（见 verify_p0 / 实际宽元素自测）。
     meas = (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>MEAS</title></head>\n'
-        '<body style="margin:0;"><div id="vp" style="width:%dpx;margin:0 auto;background:#fff;'
-        'word-wrap:break-word;overflow-wrap:break-word;">\n%s\n</div>\n'
+        '<body style="margin:0;background:#ffffff;"><div id="vp" style="%s">\n%s\n</div>\n'
         '<pre id="result" style="position:absolute;left:-9999px;"></pre>\n%s</body></html>'
-    ) % (viewport, body_html, RENDER_MEASURE_JS)
+    ) % (viewport_shell(viewport), body_html, RENDER_MEASURE_JS)
     meas = meas.replace("done()", "gzhDone()")
     tmp = tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8")
     tmp.write(meas)
@@ -536,8 +561,8 @@ def render_shot(chrome, body_html, viewport, out_png, scale=1):
     tmp.write(
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width">\n</head>'
-        '<body style="margin:0;"><section style="max-width:680px;margin:0 auto;'
-        f'word-wrap:break-word;overflow-wrap:break-word;">\n{body_html}\n</section></body></html>'
+        '<body style="margin:0;background:#ffffff;">'
+        f'<div style="{viewport_shell(viewport)}">\n{body_html}\n</div></body></html>'
     )
     tmp.close()
     sandbox_args, profile = chrome_sandbox_args()

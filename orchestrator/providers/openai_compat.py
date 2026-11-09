@@ -10,7 +10,11 @@
     GZH_LLM_MODEL     默认 deepseek-flash
 
 预算策略：推理模型的 reasoning_content 计入 max_tokens，被占满时自动加倍重试，
-直到 max_output（默认 8192）为止。
+直到 max_output（默认 32000，可用 GZH_LLM_MAX_OUTPUT 覆盖）为止。
+
+为什么默认是 32000：writer 要一次写 2—4 千字正文，而推理模型会先把
+reasoning_content 计进同一份预算；上限卡在 8192 时，正文会在半句处被截断
+（2026-11-09 用 Ilya 访谈实录复现：出稿 2323 字后断在"包括 RL 环境"）。
 
 重试策略（对齐 SOP v9 §07）：
     网络错误 / 429 / 5xx → 指数退避重试（默认 2 次）
@@ -48,7 +52,7 @@ class OpenAICompatProvider(Provider):
     def __init__(self, *, base_url: str | None = None, api_key: str | None = None,
                  model: str | None = None, preset: str | None = None,
                  timeout: float = 90.0, max_retries: int = 2, backoff: float = 1.0,
-                 max_output: int = 8192):
+                 max_output: int | None = None):
         p_base, p_model = PRESETS.get((preset or "").lower(),
                                       (self.DEFAULT_BASE_URL, self.DEFAULT_MODEL))
         self.base_url = (base_url or os.environ.get("GZH_LLM_BASE_URL") or p_base).rstrip("/")
@@ -60,7 +64,8 @@ class OpenAICompatProvider(Provider):
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff = backoff
-        self.max_output = max_output
+        # 推理模型会把 reasoning 计入同一预算；8192 会把正文截在半句。
+        self.max_output = int(max_output or os.environ.get("GZH_LLM_MAX_OUTPUT") or 32000)
         # T5a：成本记账。不改 complete() 签名（9 个调用点不用动），失败/成功都只
         # 更新实例属性；字段缺失如实标 None，不假装 0。
         self.last_usage: dict[str, int | None] | None = None
