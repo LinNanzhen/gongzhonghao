@@ -1,0 +1,763 @@
+{
+  "version": 1,
+  "_comment": "播客订阅配置。tier: S=必追 / A=值得听 / B=扫标题 / C=归档（enabled=false 不参与轮询）。fulltext: true=feed 自带全文，false=只有节目笔记，auto=按长度判断。transcript: feed=用 RSS 正文 / site=抓官网单集页 / audio=下载音频转写 / auto=依次尝试 / none=只记标题。site_transcript_link: 单集页正文太短时，按此正则跟随页面里的转写链接（Lex 用 '-transcript'）。skip: 标题命中这些正则的不入档。",
+  "defaults": {
+    "baseline_days": 7,
+    "baseline_max_per_feed": 3,
+    "min_fulltext_chars": 6000,
+    "min_site_chars": 3000,
+    "max_items_per_feed": 60,
+    "timeout": 30,
+    "workers": 6,
+    "audio_max_mb": 300,
+    "auto_transcribe": false
+  },
+  "paths": {
+    "out": "播客监控"
+  },
+  "integrations": {
+    "feishu_webhook_env": "FEISHU_WEBHOOK"
+  },
+  "podcasts": [
+    {
+      "id": "zhangxiaojun",
+      "name": "张小珺商业访谈录",
+      "lang": "zh",
+      "tier": "S",
+      "feed": "https://zhangxiaojun.qiaomu.ai/feed.xml",
+      "site": "https://zhangxiaojun.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "一期 2–7 小时的深访，AI/科技公司一把手与投资人一手表达密度最高；qiaomu 站已产出中文精读全文。",
+      "tags": [
+        "AI",
+        "人物",
+        "中国"
+      ]
+    },
+    {
+      "id": "latetalk",
+      "name": "晚点聊 LateTalk",
+      "lang": "zh",
+      "tier": "S",
+      "feed": "https://latetalk.qiaomu.ai/feed.xml",
+      "site": "https://latetalk.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "晚点原创科技访谈，常拿到融资/招股书/组织变动的一手信息，是人物稿的事实底座。",
+      "tags": [
+        "AI",
+        "科技公司",
+        "中国"
+      ]
+    },
+    {
+      "id": "42zhangjing",
+      "name": "42章经",
+      "lang": "zh",
+      "tier": "A",
+      "feed": "https://42zhangjing.qiaomu.ai/feed.xml",
+      "site": "https://42zhangjing.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "曲凯与创业者/投资人围绕一个具体问题深挖，商业逻辑拆解密度高。",
+      "tags": [
+        "创投",
+        "商业",
+        "中国"
+      ]
+    },
+    {
+      "id": "crossing",
+      "name": "十字路口 Crossing",
+      "lang": "zh",
+      "tier": "A",
+      "feed": "https://crossing.qiaomu.ai/feed.xml",
+      "site": "https://crossing.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "找 AI 时代的主动变革者，聊 AI 对各行业的实际改造，适合案例型选题。",
+      "tags": [
+        "AI",
+        "行业应用",
+        "中国"
+      ]
+    },
+    {
+      "id": "aialchemy",
+      "name": "AI 炼金术",
+      "lang": "zh",
+      "tier": "A",
+      "feed": "https://aialchemy.qiaomu.ai/feed.xml",
+      "site": "https://aialchemy.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "徐文浩 × 仁心，聊 AI 带来的底层变化与商业机会，偏技术判断。",
+      "tags": [
+        "AI",
+        "技术判断",
+        "中国"
+      ]
+    },
+    {
+      "id": "mianji",
+      "name": "面基",
+      "lang": "zh",
+      "tier": "A",
+      "feed": "https://mianji.qiaomu.ai/feed.xml",
+      "site": "https://mianji.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "每期一位一线从业者把一个行业/职业讲透，适合做行业底稿。",
+      "tags": [
+        "行业",
+        "从业者",
+        "中国"
+      ]
+    },
+    {
+      "id": "35huan",
+      "name": "三五环",
+      "lang": "zh",
+      "tier": "B",
+      "feed": "https://35huan.qiaomu.ai/feed.xml",
+      "site": "https://35huan.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "刘飞与业内人聊认知与生活态度，选题偏软，扫标题即可。",
+      "tags": [
+        "认知",
+        "生活",
+        "中国"
+      ]
+    },
+    {
+      "id": "zhixing",
+      "name": "知行小酒馆",
+      "lang": "zh",
+      "tier": "B",
+      "feed": "https://zhixing.qiaomu.ai/feed.xml",
+      "site": "https://zhixing.qiaomu.ai",
+      "fulltext": true,
+      "transcript": "feed",
+      "enabled": true,
+      "note": "投资理财与更好的生活，非 AI 主线；有金融选题需求时看。",
+      "tags": [
+        "投资",
+        "金融",
+        "中国"
+      ]
+    },
+    {
+      "id": "sv101",
+      "name": "硅谷101",
+      "lang": "zh",
+      "tier": "S",
+      "feed": "https://feeds.fireside.fm/sv101/rss",
+      "site": "https://sv101.fireside.fm",
+      "fulltext": false,
+      "transcript": "audio",
+      "enabled": true,
+      "note": "硅谷视角的技术与商业解释，嘉宾层级高（Vitalik、一线研究员）；RSS 只有 show notes，需 STT 才有全文。",
+      "tags": [
+        "AI",
+        "硅谷",
+        "技术解释"
+      ]
+    },
+    {
+      "id": "whatsnext",
+      "name": "What's Next｜科技早知道",
+      "lang": "zh",
+      "tier": "A",
+      "feed": "https://feeds.fireside.fm/guiguzaozhidao/rss",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "audio",
+      "enabled": true,
+      "note": "声动活泼旗下科技访谈，中文科技热点的快速拆解；无文字稿，需 STT。",
+      "tags": [
+        "科技",
+        "中国"
+      ]
+    },
+    {
+      "id": "luanfanshu",
+      "name": "乱翻书",
+      "lang": "zh",
+      "tier": "A",
+      "feed": "https://feed.xyzfm.space/yxuruh3f9mc4",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "audio",
+      "enabled": true,
+      "note": "互联网公司与产品史的长访，做「公司/人物史」选题很好用；无文字稿，需 STT。",
+      "tags": [
+        "互联网",
+        "公司史",
+        "中国"
+      ]
+    },
+    {
+      "id": "fengtouquan",
+      "name": "疯投圈",
+      "lang": "zh",
+      "tier": "B",
+      "feed": "https://crazy.capital/feed",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": true,
+      "note": "风险投资视角的行业唠嗑，干货密度中等；标题扫一眼即可（不排队，省成本）。",
+      "tags": [
+        "创投",
+        "中国"
+      ]
+    },
+    {
+      "id": "whyjiang",
+      "name": "商业WHY酱",
+      "lang": "zh",
+      "tier": "C",
+      "feed": "https://feed.xyzfm.space/twj7n6rmffpd",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "已 4.5 个月未更新（2026-06 止），暂不监控。",
+      "tags": [
+        "商业",
+        "中国"
+      ]
+    },
+    {
+      "id": "yingdi",
+      "name": "硬地骇客",
+      "lang": "zh",
+      "tier": "C",
+      "feed": "https://feed.xyzfm.space/byhkljlbep9j",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "已 3 个月未更新（2026-08 止），暂不监控。",
+      "tags": [
+        "技术",
+        "中国"
+      ]
+    },
+    {
+      "id": "onboard",
+      "name": "OnBoard!",
+      "lang": "zh",
+      "tier": "C",
+      "feed": "https://feed.xyzfm.space/xxg7ryklkkft",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "停更 16 个月（2025-07 止），暂不监控。",
+      "tags": [
+        "职场",
+        "中国"
+      ]
+    },
+    {
+      "id": "feiteng",
+      "name": "沸腾客厅",
+      "lang": "zh",
+      "tier": "C",
+      "feed": "https://feeds.daopub.com/ftkt.xml",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "停更 3.7 年（2023-03 止），不监控。",
+      "tags": [
+        "创业",
+        "中国"
+      ]
+    },
+    {
+      "id": "dwarkesh",
+      "name": "Dwarkesh Podcast",
+      "lang": "en",
+      "tier": "S",
+      "feed": "https://www.dwarkesh.com/feed",
+      "site": "https://www.dwarkesh.com",
+      "fulltext": "auto",
+      "transcript": "auto",
+      "enabled": true,
+      "note": "英文 AI 一手访谈天花板：OpenAI/Anthropic/DeepMind 负责人与核心研究员；Substack feed 常带完整正文/转写（备用官方源 api.dwarkesh.com/podcast/rss/）。",
+      "tags": [
+        "AI",
+        "研究",
+        "英文"
+      ]
+    },
+    {
+      "id": "lex",
+      "name": "Lex Fridman Podcast",
+      "lang": "en",
+      "tier": "S",
+      "feed": "https://lexfridman.com/feed/podcast/",
+      "site": "https://lexfridman.com",
+      "fulltext": false,
+      "transcript": "site",
+      "enabled": true,
+      "note": "嘉宾层级最高（CEO/图灵奖/实验室负责人），每集有独立 transcript 页，可免费抓全文。",
+      "tags": [
+        "AI",
+        "长访谈",
+        "英文"
+      ],
+      "site_transcript_link": "-transcript"
+    },
+    {
+      "id": "latentspace",
+      "name": "Latent Space",
+      "lang": "en",
+      "tier": "S",
+      "feed": "https://podcast.latent.space/feed.xml",
+      "site": "https://www.latent.space",
+      "fulltext": "auto",
+      "transcript": "auto",
+      "enabled": true,
+      "note": "AI Engineer 圈第一手技术访谈，模型/工具链细节最多；官网单集页多带完整转写（[AINews] 日更资讯跳过）。",
+      "tags": [
+        "AI",
+        "工程",
+        "英文"
+      ],
+      "skip": [
+        "\\[AINews\\]"
+      ]
+    },
+    {
+      "id": "nopriors",
+      "name": "No Priors",
+      "lang": "en",
+      "tier": "S",
+      "feed": "https://feeds.megaphone.fm/nopriors",
+      "site": "https://www.nopriors.com",
+      "fulltext": false,
+      "transcript": "audio",
+      "enabled": true,
+      "note": "Sarah Guo × Elad Gil，创始人/投资人视角的 AI 商业化判断；只有音频，需 STT（官网本机 TLS 握手异常）。",
+      "tags": [
+        "AI",
+        "创投",
+        "英文"
+      ]
+    },
+    {
+      "id": "cogrev",
+      "name": "The Cognitive Revolution",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://feeds.megaphone.fm/RINTP3108857801",
+      "site": "https://www.cognitiverevolution.ai",
+      "fulltext": false,
+      "transcript": "site",
+      "enabled": true,
+      "note": "AI 能力与安全边界的长访，一线研究员+政策制定者；单集页内嵌完整转写，可直接抓。",
+      "tags": [
+        "AI",
+        "安全",
+        "英文"
+      ]
+    },
+    {
+      "id": "acquired",
+      "name": "Acquired",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://feeds.transistor.fm/acquired",
+      "site": "https://www.acquired.fm",
+      "fulltext": false,
+      "transcript": "site",
+      "enabled": true,
+      "note": "公司史深挖标杆，3–4 小时讲清一个人与一家公司的决策链；单集页全文极大，适合做长稿骨架。",
+      "tags": [
+        "公司史",
+        "商业",
+        "英文"
+      ]
+    },
+    {
+      "id": "bg2",
+      "name": "BG2 Pod",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://anchor.fm/s/f06c2370/podcast/rss",
+      "site": "",
+      "fulltext": false,
+      "transcript": "audio",
+      "enabled": true,
+      "note": "Brad Gerstner × Bill Gurley，AI 资本开支/算力经济的判断极锋利；实测季更（81–125 天）。",
+      "tags": [
+        "AI",
+        "资本市场",
+        "英文"
+      ]
+    },
+    {
+      "id": "20vc",
+      "name": "The Twenty Minute VC (20VC)",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://rss.libsyn.com/shows/61840/destinations/240976.xml",
+      "site": "",
+      "fulltext": false,
+      "transcript": "audio",
+      "enabled": true,
+      "note": "Harry Stebbings 的高频创投访谈，AI 创业公司融资与增长细节多；周更 3 期，量大挑着看。",
+      "tags": [
+        "创投",
+        "英文"
+      ]
+    },
+    {
+      "id": "trainingdata",
+      "name": "Training Data",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://feeds.megaphone.fm/trainingdata",
+      "site": "",
+      "fulltext": false,
+      "transcript": "auto",
+      "enabled": true,
+      "note": "Sequoia 的 AI 访谈，偏应用与商业化；有就抓站内，没有就排队。",
+      "tags": [
+        "AI",
+        "创投",
+        "英文"
+      ]
+    },
+    {
+      "id": "bigtech",
+      "name": "Big Technology Podcast",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://feeds.megaphone.fm/LI3617121267",
+      "site": "",
+      "fulltext": false,
+      "transcript": "auto",
+      "enabled": true,
+      "note": "Alex Kantrowitz 访科技公司高管，新闻性与人物判断兼顾。",
+      "tags": [
+        "科技公司",
+        "人物",
+        "英文"
+      ]
+    },
+    {
+      "id": "deepmind",
+      "name": "Google DeepMind: The Podcast",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://feeds.simplecast.com/JT6pbPkg",
+      "site": "",
+      "fulltext": false,
+      "transcript": "audio",
+      "enabled": true,
+      "note": "DeepMind 官方出品，研究员亲述项目（AlphaFold/Genie 等），第一方视角稀缺。",
+      "tags": [
+        "AI",
+        "研究",
+        "英文"
+      ]
+    },
+    {
+      "id": "twiml",
+      "name": "The TWIML AI Podcast",
+      "lang": "en",
+      "tier": "A",
+      "feed": "https://feeds.megaphone.fm/MLN2155636147",
+      "site": "",
+      "fulltext": false,
+      "transcript": "auto",
+      "enabled": true,
+      "note": "做了 9 年的机器学习技术访谈，研究者/工程师向，适合技术细节选题。",
+      "tags": [
+        "AI",
+        "技术",
+        "英文"
+      ]
+    },
+    {
+      "id": "tbpn",
+      "name": "TBPN",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://feeds.transistor.fm/technology-brother",
+      "site": "",
+      "fulltext": false,
+      "transcript": "site",
+      "enabled": true,
+      "note": "日更科技谈话，节奏快、热点全；每集有 /transcript 页，可低成本拿全文。",
+      "tags": [
+        "资讯",
+        "英文"
+      ]
+    },
+    {
+      "id": "aidailybrief",
+      "name": "The AI Daily Brief",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://anchor.fm/s/f7cac464/podcast/rss",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "日更 AI 新闻评论，10 分钟一集；只扫标题，不入队（省 STT 成本）。",
+      "tags": [
+        "资讯",
+        "英文"
+      ]
+    },
+    {
+      "id": "a16z",
+      "name": "The a16z Show",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://feeds.simplecast.com/JGE3yC0V",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "a16z 官方播客，日更，偏观点与赛道扫描。",
+      "tags": [
+        "创投",
+        "英文"
+      ]
+    },
+    {
+      "id": "hardfork",
+      "name": "Hard Fork (NYT)",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://feeds.simplecast.com/6HKOhNgS",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "纽约时报科技评论，新闻解读好但文字稿付费墙；只扫标题。",
+      "tags": [
+        "评论",
+        "英文"
+      ]
+    },
+    {
+      "id": "allin",
+      "name": "All-In Podcast",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://rss.libsyn.com/shows/254861/destinations/1928300.xml",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "四位大佬的周度对喷，市场情绪与资本视角；观点强、事实需二次核。",
+      "tags": [
+        "观点",
+        "英文"
+      ]
+    },
+    {
+      "id": "bloombergtech",
+      "name": "Bloomberg Technology",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/41764a4f-fc64-4e11-89ba-ae7c0030ab5e/9caafc41-289c-4115-995d-ae7c0030ab75/podcast.rss",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "彭博科技日更新闻；feed 会串入 Power On 等栏目内容，按标题挑。",
+      "tags": [
+        "资讯",
+        "彭博",
+        "英文"
+      ]
+    },
+    {
+      "id": "decoder",
+      "name": "Decoder with Nilay Patel",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://feeds.megaphone.fm/recodedecode",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "The Verge 的科技公司 CEO 长访，常聊 AI 战略；无文字稿。",
+      "tags": [
+        "科技公司",
+        "英文"
+      ]
+    },
+    {
+      "id": "lenny",
+      "name": "Lenny's Podcast",
+      "lang": "en",
+      "tier": "B",
+      "feed": "https://api.substack.com/feed/podcast/10845.rss",
+      "site": "",
+      "fulltext": false,
+      "transcript": "none",
+      "enabled": true,
+      "note": "产品/增长向，AI 产品经理访谈多；部分文字稿付费墙。",
+      "tags": [
+        "产品",
+        "英文"
+      ]
+    },
+    {
+      "id": "oddlots",
+      "name": "Odd Lots",
+      "lang": "en",
+      "tier": "S",
+      "feed": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/8a94442e-5a74-4fa2-8b8d-ae27003a8d6b/982f5071-765c-403d-969d-ae27003a8d83/podcast.rss",
+      "site": "",
+      "fulltext": false,
+      "transcript": "audio",
+      "enabled": true,
+      "note": "彭博最会问「这到底怎么运作」的两人，常访 AI 基建/能源/算力当事人，是算力与资本叙事的最佳一手来源；无文字稿，需 STT。",
+      "tags": [
+        "AI",
+        "算力",
+        "彭博",
+        "英文"
+      ]
+    },
+    {
+      "id": "lwia",
+      "name": "Last Week in AI",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://rss.art19.com/last-week-in-ai",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "周度 AI 新闻综述，与日报重复度高，暂不监控。",
+      "tags": [
+        "资讯",
+        "英文"
+      ]
+    },
+    {
+      "id": "eyeonai",
+      "name": "Eye On A.I.",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://rss.libsyn.com/shows/123267/destinations/727317.xml",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "周度 AI 访谈，嘉宾层级中等，暂不监控。",
+      "tags": [
+        "AI",
+        "英文"
+      ]
+    },
+    {
+      "id": "behindthetech",
+      "name": "Behind The Tech with Kevin Scott",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://rss.libsyn.com/shows/121695/destinations/713127.xml",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "停更 21 个月（2025-02 止），不监控。",
+      "tags": [
+        "AI",
+        "英文"
+      ]
+    },
+    {
+      "id": "lightcone",
+      "name": "Lightcone Podcast (YC)",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://anchor.fm/s/f58d3330/podcast/rss",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "停更 11 个月（2025-12 止），不监控。",
+      "tags": [
+        "创投",
+        "英文"
+      ]
+    },
+    {
+      "id": "circuit",
+      "name": "The Circuit with Emily Chang",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/5fcb25d0-ece4-45e4-93f6-b01900d5e2ff/3d8551fb-ccf9-49ef-b51c-b01900d636c8/podcast.rss",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "停更 9 个月（2026-02 止），不监控。",
+      "tags": [
+        "彭博",
+        "英文"
+      ]
+    },
+    {
+      "id": "bw",
+      "name": "Bloomberg Businessweek",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/3b082bbf-691d-443b-bc59-ae2b0012ff93/9222076a-d22a-4a9f-9d26-ae2b0012ffb4/podcast.rss",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "日更多条、单集短、噪音大，不适合深度稿素材，不监控。",
+      "tags": [
+        "资讯",
+        "彭博",
+        "英文"
+      ]
+    },
+    {
+      "id": "surveillance",
+      "name": "Bloomberg Surveillance",
+      "lang": "en",
+      "tier": "C",
+      "feed": "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/8e704079-ca57-4eac-9741-ae27003e2b7f/9739700c-72c3-4176-ae55-ae27003e2b96/podcast.rss",
+      "site": "",
+      "fulltext": "auto",
+      "transcript": "none",
+      "enabled": false,
+      "note": "日更多条财经快评，噪音大，不监控。",
+      "tags": [
+        "资讯",
+        "彭博",
+        "英文"
+      ]
+    }
+  ],
+  "digest": {
+    "tiers": [
+      "S",
+      "A"
+    ]
+  }
+}

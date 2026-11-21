@@ -1,0 +1,12 @@
+#!/bin/sh
+# STT 入口（本地/服务器通用）：tools/stt/stt <文件|链接...> [选项]
+#   解释器优先级：$STT_PYTHON → 同目录 .venv → python3
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -n "${STT_PYTHON:-}" ]; then
+  PY=$STT_PYTHON
+elif [ -x "$DIR/.venv/bin/python" ]; then
+  PY=$DIR/.venv/bin/python
+else
+  PY=python3
+fi
+exec "$PY" "$DIR/stt.py" "$@"
