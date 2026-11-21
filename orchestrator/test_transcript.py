@@ -4,14 +4,19 @@
 
 from __future__ import annotations
 
+import html
+import json
 import sys
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator.transcript import (  # noqa: E402
-    parse_feishu, parse_srt, parse_text, parse_vtt, to_seconds,
+    convert, load_any, parse_docx, parse_feishu, parse_srt, parse_text,
+    parse_vtt, to_payload, to_seconds,
 )
 
 FEISHU = """@说话人 1  00:01
@@ -36,6 +41,15 @@ SRT = """1
 2
 00:00:04,000 --> 00:00:06,000
 第二句
+"""
+
+SRT_SPEAKER = """1
+00:00:01,000 --> 00:00:03,500
+说话人 1: 第一句
+
+2
+00:00:04,000 --> 00:00:06,000
+说话人 2：第二句
 """
 
 PLAIN = "没有任何时间戳的一段话。\n第二行。"
@@ -68,6 +82,14 @@ class TestTimes(unittest.TestCase):
 
     def test_srt_comma(self):
         self.assertEqual(to_seconds("00:00:03,500"), 3.5)
+
+
+class TestSrtSpeaker(unittest.TestCase):
+    def test_speaker_prefix(self):
+        segs = parse_srt(SRT_SPEAKER)
+        self.assertEqual([s["speaker"] for s in segs], ["说话人 1", "说话人 2"])
+        self.assertEqual(segs[0]["text"], "第一句")
+        self.assertEqual(segs[1]["text"], "第二句")
 
 
 class TestFeishu(unittest.TestCase):
@@ -139,6 +161,115 @@ class TestDispatch(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(parse_text("   \n\n  "), [])
+
+
+# ---------------------------------------------------------------- docx
+
+
+def make_docx(path: Path, paragraphs: list[str], *, raw_body: str = "") -> Path:
+    """构造最小 .docx（只需要 word/document.xml），不依赖 python-docx。"""
+    body = raw_body or "".join(
+        f'<w:p><w:r><w:t xml:space="preserve">{html.escape(p)}</w:t></w:r></w:p>'
+        for p in paragraphs)
+    xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+           '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+           f'<w:body>{body}</w:body></w:document>')
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("word/document.xml", xml)
+    return path
+
+
+class TestDocx(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def docx(self, name: str, paragraphs: list[str], **kwargs) -> Path:
+        return make_docx(self.dir / name, paragraphs, **kwargs)
+
+    def test_paragraph_split_without_timestamps(self):
+        """没有时间轴时按段落切分：start=0 也要能产出 transcript.json。"""
+        path = self.docx("plain.docx", ["第一段。", "第二段。", ""])
+        segs = load_any(path)
+        self.assertEqual([s["text"] for s in segs], ["第一段。", "第二段。"])
+        self.assertEqual([s["start"] for s in segs], [0.0, 0.0])
+        payload = to_payload(segs, source=path.name)
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["segments"][1]["text"], "第二段。")
+
+    def test_feishu_timeline(self):
+        path = self.docx("feishu.docx", [
+            "@说话人 1  00:01", "大家好，我是主持人小雨。",
+            "@说话人 2  00:28", "我是杨攀。",
+        ])
+        segs = load_any(path)
+        self.assertEqual([s["speaker"] for s in segs], ["说话人 1", "说话人 2"])
+        self.assertEqual([s["start"] for s in segs], [1.0, 28.0])
+        self.assertEqual(segs[0]["text"], "大家好，我是主持人小雨。")
+
+    def test_srt_inside_docx(self):
+        path = self.docx("srt.docx", [
+            "1\n00:00:01,000 --> 00:00:03,500\n说话人 1: 第一句",
+            "2\n00:00:04,000 --> 00:00:06,000\n说话人 2: 第二句",
+        ])
+        segs = load_any(path)
+        self.assertEqual([s["text"] for s in segs], ["第一句", "第二句"])
+        self.assertEqual(segs[0]["start"], 1.0)
+        self.assertEqual(segs[0]["speaker"], "说话人 1")
+
+    def test_speaker_prefix_without_timeline(self):
+        path = self.docx("speaker.docx", ["说话人 1：第一句", "续一行", "说话人 2：第二句"])
+        segs = load_any(path)
+        self.assertEqual([s["speaker"] for s in segs], ["说话人 1", "说话人 2"])
+        self.assertIn("续一行", segs[0]["text"])
+        self.assertEqual(segs[1]["text"], "第二句")
+
+    def test_runs_concatenated_and_entities_unescaped(self):
+        raw = ('<w:p><w:r><w:t>前半</w:t></w:r><w:r><w:t>后半</w:t></w:r></w:p>'
+               '<w:p><w:r><w:t>A &amp; B &lt; C</w:t></w:r></w:p>')
+        path = self.docx("runs.docx", [], raw_body=raw)
+        segs = load_any(path)
+        self.assertEqual([s["text"] for s in segs], ["前半后半", "A & B < C"])
+
+    def test_paragraph_with_tab_and_break(self):
+        raw = '<w:p><w:r><w:t>甲</w:t><w:tab/><w:t>乙</w:t><w:br/><w:t>丙</w:t></w:r></w:p>'
+        path = self.docx("tab.docx", [], raw_body=raw)
+        self.assertEqual(load_any(path)[0]["text"], "甲 乙\n丙")
+
+    def test_empty_docx(self):
+        path = self.docx("empty.docx", ["", "   "])
+        self.assertEqual(load_any(path), [])
+        self.assertEqual(to_payload(load_any(path))["count"], 0)
+
+    def test_docx_parse_function_directly(self):
+        segs = parse_docx(["甲。", "乙。"])
+        self.assertEqual([s["text"] for s in segs], ["甲。", "乙。"])
+        self.assertEqual(parse_docx([]), [])
+
+    def test_bad_docx_raises(self):
+        bad = self.dir / "bad.docx"
+        bad.write_bytes(b"not a zip")
+        with self.assertRaises(ValueError):
+            load_any(bad)
+
+    def test_binary_doc_raises_with_hint(self):
+        doc = self.dir / "old.doc"
+        doc.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1 old binary")
+        with self.assertRaises(ValueError) as caught:
+            load_any(doc)
+        self.assertIn("docx", str(caught.exception))
+
+    def test_doc_that_is_actually_docx(self):
+        path = make_docx(self.dir / "renamed.doc", ["甲。", "乙。"])
+        self.assertEqual([s["text"] for s in load_any(path)], ["甲。", "乙。"])
+
+    def test_convert_writes_payload_json(self):
+        path = self.docx("convert.docx", ["一段话。"])
+        out = convert(path, self.dir / "transcript.json")
+        data = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(data["count"], 1)
+        self.assertEqual(data["segments"][0]["text"], "一段话。")
 
 
 if __name__ == "__main__":

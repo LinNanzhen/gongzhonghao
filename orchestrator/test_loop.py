@@ -282,23 +282,24 @@ class TestReworkRouting(LoopCase):
         self.assertEqual(run.stage, "researched")
         self.assertEqual(run.rework["count"], 1)
 
-    def test_gatekeeper_rework_rewinds_critiqued(self):
+    def test_gatekeeper_rework_rewinds_illustrated(self):
         self.make_run(stage="composed")
         agent = FakeAgent("gatekeeper", status="rework", reason="质检未通过")
         with patch.object(loop, "AGENTS", {"gatekeeper": agent}):
             code, out = self.tick("--run-id", "abc123")
         run = self.store.get("abc123")
         self.assertEqual(code, 0, out)
-        self.assertEqual(run.stage, "critiqued")
+        # 门禁 FAIL 应回到 composer 的输入阶段（illustrated），只重排、不重抽帧
+        self.assertEqual(run.stage, "illustrated")
 
     def test_composer_rework_retries_in_place(self):
-        self.make_run(stage="critiqued")
+        self.make_run(stage="illustrated")
         agent = FakeAgent("composer", status="rework", reason="流水线 FAIL")
         with patch.object(loop, "AGENTS", {"composer": agent}):
             code, out = self.tick("--run-id", "abc123")
         run = self.store.get("abc123")
         self.assertEqual(code, 0, out)
-        self.assertEqual(run.stage, "critiqued", "composer 失败应原地重试")
+        self.assertEqual(run.stage, "illustrated", "composer 失败应原地重试")
         self.assertEqual(run.rework["count"], 1)
 
 

@@ -139,8 +139,39 @@ CLEAN_WITH_BOLD = """# 测试稿：入门岗位先被重新定价
 
 他提到 15:40 的面试片段。
 
-本文归纳：以上判断基于受访者原话。
+## 来源与说明
+
+除署名缩写的对话原话外，本文的叙述、归纳与判断均为作者观点。
 """
+
+
+class TestV10Attribution(unittest.TestCase):
+    """SOP v10：逐段标签必须消失，文末归属声明必须在，对话行缺失只提示。"""
+
+    def _run(self, text: str):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        case = Path(tmp.name) / "01_测试嘉宾_案例"
+        case.mkdir()
+        (case / "草稿.md").write_text(text, encoding="utf-8")
+        run = Run(run_id="critic-v10-test", artifacts={"draft": "草稿.md"})
+        ctx = Context(run=run, case_dir=case, orch_dir=ROOT / "orchestrator", provider=None)
+        return Critic().run(ctx)
+
+    def test_legacy_label_reworked(self):
+        result = self._run(CLEAN_WITH_BOLD + "\n本文归纳：这是旧式标签。\n")
+        self.assertEqual(result.status, "rework")
+        self.assertIn("旧式逐段标签", result.reason)
+
+    def test_missing_declaration_reworked(self):
+        text = CLEAN_WITH_BOLD.replace("除署名缩写的对话原话外，本文的叙述、归纳与判断均为作者观点。", "")
+        result = self._run(text)
+        self.assertEqual(result.status, "rework")
+        self.assertIn("归属声明", result.reason)
+
+    def test_dialogue_missing_is_warn_only(self):
+        result = self._run(CLEAN_WITH_BOLD)   # 有声明、无对话行
+        self.assertEqual(result.status, "ok")
 
 
 class TestHealthTable(unittest.TestCase):

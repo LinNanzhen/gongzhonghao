@@ -3,9 +3,11 @@
 """transcriber：转写与素材卡（对应 SOP v8 §03）。
 
 真实场景里转写是外部工具（whisperx / 豆包）产出的；本 agent 负责：
-1. 检查 `转写/transcript.json` 是否存在；
-2. 建素材卡骨架（时间戳｜说话者｜原文｜转述｜限定条件｜读者关联｜画面｜章节）；
-3. 缺转写时不假装完成，直接 blocked，让流程停在可解释的位置。
+1. 检查 `转写/transcript.json` 是否存在（也支持把飞书/SRT/纯文本/.docx 转成它）；
+2. 有说话人标签时做一次自动对照，写「说话人对照_{date}_{guest}.md」并登记 artifact
+   `speaker_map`（模型优先、启发式兜底，失败只是跳过，绝不 blocked）；
+3. 建素材卡骨架（时间戳｜说话者｜原文｜转述｜限定条件｜读者关联｜画面｜章节）；
+4. 缺转写时不假装完成，直接 blocked，让流程停在可解释的位置。
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from datetime import date
 import os
 
 from .base import Agent, Context, Result, guest_of
+from ..speakers import guess_speaker_map, render_speaker_map
 from ..transcript import load_any, to_payload, FEISHU_LINE
 
 MATERIAL_CARD = """# 素材卡 · {guest}
@@ -81,9 +84,37 @@ class Transcriber(Agent):
         text = MATERIAL_CARD.format(guest=guest, today=date.today().isoformat(),
                                     transcript=transcript.relative_to(ctx.case_dir))
         self.write(ctx, card, text)
+
+        artifacts = {"material_card": str(card), "transcript": str(transcript)}
+        speaker_map = self._write_speaker_map(ctx, guest, transcript)
+        if speaker_map is not None:
+            artifacts["speaker_map"] = str(speaker_map)
+
         return Result.ok(f"素材卡：{card.name}（片段表待人工/模型填充）",
-                         artifacts={"material_card": str(card), "transcript": str(transcript)},
+                         artifacts=artifacts,
                          to="transcribed")
+
+    def _write_speaker_map(self, ctx: Context, guest: str, transcript):
+        """转写有说话人标签时自动对照并写 md；跳过条件一律不 blocked。
+
+        跳过：dry_run、没有 provider、转写解析失败、对照不出任何姓名。
+        """
+        if ctx.dry_run or getattr(ctx, "provider", None) is None:
+            return None
+        try:
+            data = json.loads(transcript.read_text(encoding="utf-8"))
+            segments = data.get("segments") if isinstance(data, dict) else data
+            if not isinstance(segments, list) or not segments:
+                return None
+            mapping = guess_speaker_map(segments, ctx.provider)
+        except Exception:            # noqa: BLE001 - 对照失败不能拖垮转写阶段
+            return None
+        if not mapping:
+            return None
+        path = ctx.case_dir / f"说话人对照_{date.today().isoformat()}_{guest}.md"
+        today = date.today().isoformat()
+        self.write(ctx, path, render_speaker_map(mapping, guest=guest, today=today))
+        return path
 
     def _try_feishu(self, ctx: Context, tr_dir):
         """source 是飞书妙记链接时，用开放平台接口拉转写。"""
@@ -159,11 +190,15 @@ class Transcriber(Agent):
         return out
 
     def _convert_if_possible(self, ctx: Context, tr_dir):
-        """把目录里的逐字稿转成 transcript.json；不合法就返回 None。"""
+        """把目录里的逐字稿转成 transcript.json；不合法就返回 None。
+
+        .docx 走 `transcript.docx_paragraphs`（标准库 zipfile+re，不依赖 python-docx）。
+        """
         if not tr_dir.exists():
             return None
         cands = [p for p in sorted(tr_dir.iterdir())
-                 if p.suffix.lower() in (".md", ".txt", ".srt")
+                 if p.suffix.lower() in (".md", ".txt", ".srt", ".vtt", ".json",
+                                         ".docx", ".docm")
                  and "纪要" not in p.name and not p.name.startswith(".")]
         if not cands:
             return None

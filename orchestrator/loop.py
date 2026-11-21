@@ -417,7 +417,7 @@ def step(store: RunStore, run: Run, provider, *, dry_run: bool, render: bool) ->
         reason = result.reason or result.note
         # T3c 缺陷修复：按 agent 名分流，不再按 stage 一刀切。
         # 原逻辑 composer 失败（stage=critiqued）会 rewind researched，白烧 writer+critic 两轮。
-        rewind_to = {"critic": "researched", "gatekeeper": "critiqued"}.get(agent.name)
+        rewind_to = {"critic": "researched", "gatekeeper": "illustrated"}.get(agent.name)
         if rewind_to is not None:
             try:
                 run.rewind(rewind_to, agent.name, reason)

@@ -40,6 +40,41 @@ class Context:
             return
         (self.artifact_dir() / f"{stage}.txt").write_text(text, encoding="utf-8")
 
+    def media_path(self) -> Path | None:
+        """定位本期原视频（配图/封面抽帧用）。
+
+        解析顺序：
+        1. `case_dir/媒体路径.txt` 第一行（oneshot 建 run 时写入，绝对或相对路径）；
+        2. case_dir 下最大的 .mp4/.mov/.mkv/.m4a/.wav；
+        3. 环境变量 `GZH_MEDIA_DIR` 里与案例名/嘉宾名匹配的媒体文件。
+        找不到返回 None——配图环节应降级跳过，而不是 blocked。
+        """
+        import os
+
+        marker = self.case_dir / "媒体路径.txt"
+        if marker.exists():
+            first = marker.read_text(encoding="utf-8", errors="replace").splitlines()
+            if first and first[0].strip():
+                p = Path(first[0].strip()).expanduser()
+                if not p.is_absolute():
+                    p = self.case_dir / p
+                if p.exists() and p.is_file():
+                    return p
+
+        media_exts = {".mp4", ".mov", ".mkv", ".m4a", ".wav", ".flac", ".webm"}
+        cands = [p for p in self.case_dir.rglob("*") if p.is_file() and p.suffix.lower() in media_exts]
+        if cands:
+            return max(cands, key=lambda p: p.stat().st_size)
+
+        media_dir = os.environ.get("GZH_MEDIA_DIR")
+        if media_dir:
+            mdir = Path(media_dir)
+            if mdir.is_dir():
+                cands = [p for p in mdir.iterdir() if p.is_file() and p.suffix.lower() in media_exts]
+                if cands:
+                    return max(cands, key=lambda p: p.stat().st_size)
+        return None
+
     def artifact_path(self, key: str) -> Path | None:
         """把 `run.artifacts[key]` 解析成本机路径。
 

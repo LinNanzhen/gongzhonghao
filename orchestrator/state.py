@@ -28,6 +28,7 @@ STAGES = [
     "researched",
     "drafted",
     "critiqued",
+    "illustrated",
     "composed",
     "qc_passed",
     "awaiting_publish",
@@ -43,7 +44,8 @@ ALLOWED: dict[str, set[str]] = {
     "ledgered": {"researched"},
     "researched": {"drafted"},
     "drafted": {"critiqued", "drafted"},          # 打回：critic 不过 → 重写
-    "critiqued": {"composed", "drafted"},         # 打回：内容不过 → 回 writer
+    "critiqued": {"illustrated", "drafted"},      # 打回：内容不过 → 回 writer
+    "illustrated": {"composed", "critiqued"},     # 配图后进排版；配图不合规可回 critic
     "composed": {"qc_passed", "composed"},        # 打回：门禁 FAIL → 重排
     "qc_passed": {"awaiting_publish", "composed"},
     "awaiting_publish": {"published"},            # 只能人工放行
@@ -65,7 +67,8 @@ STAGE_AGENT: dict[str, str] = {
     "ledgered": "researcher",
     "researched": "writer",
     "drafted": "critic",
-    "critiqued": "composer",
+    "critiqued": "illustrator",
+    "illustrated": "composer",
     "composed": "gatekeeper",
     "qc_passed": "gatekeeper",
     "awaiting_publish": "archivist",
@@ -76,7 +79,8 @@ STAGE_AGENT: dict[str, str] = {
 REWIND: dict[str, set[str]] = {
     "drafted": {"researched"},     # critic 不过 → 回 writer 重写
     "critiqued": {"researched"},   # 内容层面不过 → 回 writer
-    "composed": {"critiqued", "researched"},
+    "illustrated": {"critiqued", "researched"},   # 配图后发现问题 → 回 critic/writer
+    "composed": {"illustrated", "critiqued", "researched"},   # 门禁 FAIL → 重排（illustrated 的下一环节是 composer）
     "qc_passed": {"critiqued", "researched"},
     "awaiting_publish": {"researched"},   # 改完提示词，人工要求重写
 }

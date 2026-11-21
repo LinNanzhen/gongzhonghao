@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-公众号一键流水线 v1.0（对应 SOP v8）
+公众号一键流水线 v1.1（对应 SOP v10：新增对话块渲染）
 ====================================
 输入：Markdown 人味版正文（或 HTML 正文片段）＋ 元信息
 输出：
@@ -31,6 +31,7 @@
 """
 
 import argparse
+import base64
 import html
 import json
 import os
@@ -75,6 +76,10 @@ VISUAL = {
     "quote_cn": "margin:0 0 6px;font-size:16px;line-height:1.8;color:#333333;font-weight:600;",
     "quote_en": "margin:0;font-size:14px;line-height:1.8;color:#8a857e;font-style:italic;",
     "quote_src": "margin:10px 0 0;font-size:13px;line-height:1.7;color:#999999;",
+    # 对话块（SOP v10）：说话人缩写品牌金、译文正文色不加粗、英文灰斜体
+    "quote_speaker": "color:#9a7841;font-weight:700;",
+    "quote_dialogue_cn": "margin:0 0 4px;font-size:16px;line-height:1.8;color:#333333;",
+    "quote_dialogue_en": "margin:0 0 8px;font-size:14px;line-height:1.8;color:#8a857e;font-style:italic;",
     "img_block": "margin:26px 0;",
     "img": "display:block;width:100%;height:auto;margin:0;",
     "caption": "margin:8px 0 0;font-size:13px;line-height:1.7;color:#666666;",
@@ -169,9 +174,44 @@ def inline(text):
     return text
 
 
+# 对话说话人（SOP v10）：行首「大写姓名缩写＋冒号」，如 IS： / DP：
+SPEAKER_RE = re.compile(r"^([A-Z]{1,4})[：:]\s*(.*)$")
+
+
+def speaker_inline(text):
+    """对话行：姓名缩写渲染为品牌金说话人，其余按正文；非对话行原样走 inline。"""
+    m = SPEAKER_RE.match(text)
+    if not m:
+        return inline(text)
+    return f'<strong style="{VISUAL["quote_speaker"]}">{esc(m.group(1))}：</strong>{inline(m.group(2))}'
+
+
 # ---------------------------------------------------------------- md 解析
-def parse_md(md_text, card_html=None, series="", episode="", prev=""):
-    """把 Markdown 人味版正文解析为 BODY_HTML。"""
+def _embed_local_image(url, md_dir):
+    """本地相对路径图片 → data URI（导入片段必须自包含，微信编辑器不认本地路径）。
+
+    只有 http(s):// 与 data: 原样保留；其余按 md 所在目录解析，文件存在才内联，
+    不存在则原样返回（交给质检「图片链接合规」报 FAIL，不静默吞掉）。
+    """
+    if url.startswith(("http://", "https://", "data:")):
+        return url
+    if md_dir is None:
+        return url
+    cand = Path(md_dir) / url
+    if not cand.exists():
+        return url
+    suffix = cand.suffix.lower().lstrip(".")
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp",
+            "gif": "gif"}.get(suffix, "jpeg")
+    b64 = base64.b64encode(cand.read_bytes()).decode("ascii")
+    return f"data:image/{mime};base64,{b64}"
+
+
+def parse_md(md_text, card_html=None, series="", episode="", prev="", md_dir=None):
+    """把 Markdown 人味版正文解析为 BODY_HTML。
+
+    md_dir：正文 md 所在目录；相对路径图片会内联成 data URI，保证导入片段自包含。
+    """
     lines = md_text.split("\n")
     body = []
     brand = ""
@@ -236,8 +276,12 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
                         f'<section style="{VISUAL["section_top"]}"><p style="{VISUAL["src_title"]}">{esc(title)}</p>'
                     )
                     i += 1
+                    # 标题与条目之间允许空行（标准 md 写法）；逐条渲染，去列表符
+                    while i < n and not lines[i].strip():
+                        i += 1
                     while i < n and lines[i].strip() and not lines[i].startswith("## "):
-                        body.append(p(inline(lines[i].strip()), VISUAL["src_line"]))
+                        src = re.sub(r"^[-*]\s+", "", lines[i].strip())
+                        body.append(p(inline(src), VISUAL["src_line"]))
                         i += 1
                     body.append("</section>")
                     continue
@@ -256,9 +300,11 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
             i += 1
             continue
 
-        # 引用块 / 导读条（连续 > 行）
+        # 引用块 / 导读条 / 对话块（连续 > 行）
         #   普通引用：> 文本
-        #   中英对照导读条：> 中文观点  +  > EN|英文原话（可多行，EN 前缀行渲染为灰色斜体）
+        #   中英对照导读条：> 中文观点  +  > EN|英文原话（EN 前缀行渲染为灰色斜体）
+        #   对话块（SOP v10）：> IS：中文译文  +  > EN|English original
+        #     行首「大写缩写＋冒号」识别为说话人；问答可同块，按行序交替渲染
         if line.startswith(">"):
             quotes = []
             while i < n and lines[i].strip().startswith(">"):
@@ -267,14 +313,32 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
                     quotes.append(q)
                 i += 1
             has_en = any(re.match(r"^EN[|｜:：]", q) for q in quotes)
-            if has_en:
+
+            def is_src(q):
+                return q.startswith("——") or q.startswith("—") or (q.startswith("- ") and "：" not in q)
+
+            dialogue = any(SPEAKER_RE.match(q) for q in quotes
+                           if not re.match(r"^EN[|｜:：]", q) and not is_src(q))
+            if has_en and dialogue:
+                # 对话块：说话人金色、译文不加粗、英文灰斜体，逐行交替
+                block = [f'<section style="{VISUAL["quote"]}">']
+                for q in quotes:
+                    m_en = re.match(r"^EN[|｜:：]\s*", q)
+                    if m_en:
+                        block.append(p(inline(q[m_en.end():]), VISUAL["quote_dialogue_en"]))
+                    elif is_src(q):
+                        block.append(p(inline(q), VISUAL["quote_src"]))
+                    else:
+                        block.append(p(speaker_inline(q), VISUAL["quote_dialogue_cn"]))
+                block.append("</section>")
+            elif has_en:
                 # 导读条：中英对照
                 block = [f'<section style="{VISUAL["quote"]}">']
                 cn_lines, en_lines, src_lines = [], [], []
                 for q in quotes:
                     if re.match(r"^EN[|｜:：]", q):
                         en_lines.append(re.sub(r"^EN[|｜:：]\s*", "", q))
-                    elif q.startswith("——") or q.startswith("—") or (q.startswith("- ") and "：" not in q):
+                    elif is_src(q):
                         src_lines.append(q)
                     else:
                         cn_lines.append(q)
@@ -289,10 +353,10 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
                 # 普通引用块
                 block = [f'<section style="{VISUAL["quote"]}">']
                 for j, q in enumerate(quotes):
-                    if q.startswith("——") or q.startswith("—") or (q.startswith("- ") and "：" not in q):
+                    if is_src(q):
                         block.append(p(inline(q), VISUAL["quote_src"]))
                     else:
-                        block.append(p(inline(q)))
+                        block.append(p(speaker_inline(q)))
                 block.append("</section>")
             body.append("\n".join(block))
             continue
@@ -301,7 +365,7 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
         m_img = re.match(r"^!\[(.*?)\]\((.*?)\)\s*$", line)
         if m_img:
             cap = m_img.group(1).strip()
-            url = m_img.group(2).strip()
+            url = _embed_local_image(m_img.group(2).strip(), md_dir)
             alt = esc(cap) if cap else "配图"
             block = [f'<section style="{VISUAL["img_block"]}">']
             block.append(f'<img src="{esc(url)}" style="{VISUAL["img"]}" alt="{alt}">')
@@ -581,7 +645,7 @@ def render_shot(chrome, body_html, viewport, out_png, scale=1):
 
 # ---------------------------------------------------------------- 主流程
 def main():
-    ap = argparse.ArgumentParser(description="公众号一键流水线（SOP v8）")
+    ap = argparse.ArgumentParser(description="公众号一键流水线（SOP v10）")
     ap.add_argument("--md", help="Markdown 人味版正文源文件")
     ap.add_argument("--body-html", help="HTML 正文片段（已含内联样式），与 --md 二选一")
     ap.add_argument("--name", required=True, help="产物名前缀，如 布林约尔松AI就业观_v9")
@@ -636,7 +700,8 @@ def main():
     # 3. 生成 BODY / 双 HTML
     if args.md:
         body_html = parse_md(md_text, card_html=card_html,
-                             series=args.series, episode=args.episode, prev=args.prev)
+                             series=args.series, episode=args.episode, prev=args.prev,
+                             md_dir=md_path.parent)
     else:
         body_html = body_html_raw
     preview_html, import_html = build_html(body_html, title or args.name)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""critic：观点体检（对应 SOP v8 §05 四关）。
+"""critic：观点体检（对应 SOP v10 §05 四关；v10 起查文末归属声明，不再查逐段标签）。
 
 只打分、不改稿。四关中「可复述」与「有证据」可机器判，
 「有对手」「有代价」需要人读，机器只检查是否有对应段落。
@@ -88,7 +88,7 @@ def scan_humanize(text: str) -> tuple[list[str], list[str]]:
     return fails, warns
 REPORT = """# 观点体检 · {guest}
 
-> 生成：{today}（critic，依据 SOP v8 §05）
+> 生成：{today}（critic，依据 SOP v10 §05）
 
 ## 一、四关逐节打分
 
@@ -129,8 +129,11 @@ class Critic(Agent):
                     problems.append(f"{num} 节标题「{title}」是话题词（含「{w}」），不是判断")
         if "【" in text or "】" in text:
             problems.append("正文残留【】占位符")
-        if "本文归纳" not in text and "作者判断" not in text:
-            problems.append("缺作者判断/编辑归纳的明确标注（SOP v8 §05：三处至少一处）")
+        # SOP v10：归属靠「对话缩写 + 文末一次性声明」，不再逐段贴标签
+        if re.search(r"(?:本文归纳|作者判断)[：:]", text):
+            problems.append("残留旧式逐段标签「本文归纳：/作者判断：」（SOP v10 §05：改为对话缩写归属 + 文末一次性声明）")
+        if "均为作者" not in text:
+            problems.append("缺文末归属声明（SOP v10 §05：来源与说明须含「除署名缩写的对话原话外……均为作者观点」）")
         bolds = re.findall(r"\*\*([^*]{4,})\*\*", text)
 
         human_fails, human_warns = scan_humanize(text)
@@ -143,6 +146,9 @@ class Critic(Agent):
         per_k = len(quotes) / max(1.0, len(text) / 1000)
         if per_k < 2:
             human_warns.append(f"直接引语偏少（{len(quotes)} 处 / {len(text)} 字，建议每千字 2 处以上）")
+        # SOP v10：访谈默认呈现为缩写对话行；缺失只提示（素材可能不支持对话）
+        if not re.search(r"^>\s*[A-Z]{1,4}[：:]", text, re.M):
+            human_warns.append("未见缩写对话行（SOP v10 §05：「> IS：……」+「> EN|……」）")
         long_paras = [p for p in text.split("\n")
                       if len(p.strip()) > 150 and not p.lstrip().startswith(("#", ">", "|", "-"))]
         if long_paras:

@@ -67,7 +67,7 @@ python3 orchestrator/verify_p0.py       # P0 独立验收：临时目录跑 36 �
 
 ---
 
-## 九个智能体
+## 十个智能体
 
 | agent | 阶段 | 产物 | 打回去向 |
 |---|---|---|---|
@@ -77,8 +77,9 @@ python3 orchestrator/verify_p0.py       # P0 独立验收：临时目录跑 36 �
 | `researcher` | `ledgered → researched` | 研究笔记 | — |
 | `writer` | `researched → drafted` | `*_人味版_vN.md`（只增不覆盖） | — |
 | `critic` | `drafted → critiqued` | 体检报告（逐节机器判两关） | 不过 → 回 `researched` |
-| `composer` | `critiqued → composed` | `{嘉宾}_vN_排版预览.html` / `_导入片段.html` / `_质检报告.md` + 渲染图 | 流水线 FAIL → 原地重试 |
-| `gatekeeper` | `composed → qc_passed → awaiting_publish` | 按判定码分派（PASS/FAIL/INCOMPLETE） | FAIL → 回 `critiqued` 重排；INCOMPLETE → `blocked` |
+| `illustrator` | `critiqued → illustrated` | `{嘉宾}_人味版_vN_插图.md` + `图片/fig_0N.jpg` + `封面_{日期}_{嘉宾}.jpg` + `图源_{日期}_{嘉宾}.md` | 不阻断：无视频/无 ffmpeg/无字体会逐项降级，仍进排版 |
+| `composer` | `illustrated → composed` | `{嘉宾}_vN_排版预览.html` / `_导入片段.html` / `_质检报告.md` + 渲染图 | 流水线 FAIL → 原地重试 |
+| `gatekeeper` | `composed → qc_passed → awaiting_publish` | 按判定码分派（PASS/FAIL/INCOMPLETE） | FAIL → 回 `illustrated` 重排（不重抽帧）；INCOMPLETE → `blocked` |
 | `archivist` | `published → archived` | 发布差异记录 | — |
 
 ### 渲染验收契约与退出码（T1）
@@ -255,6 +256,25 @@ GET /open-apis/minutes/v1/minutes/{minute_token}/transcript
 → 拿 App ID / App Secret → 妙记「权限设置」里给该应用导出权限。
 
 失败不会静默：错误写进 `转写/feishu.log`，`blocked` 的原因里会直接说明是缺凭证、无权限还是转写未完成。
+
+## 一次性出稿（oneshot）
+
+视频 + 飞书转写文档 → 一条命令跑到 `awaiting_publish` 并打包导入素材：
+
+```bash
+python3 -m orchestrator.oneshot \
+  --video /opt/gzh-media/009_DSH.mp4 \
+  --transcript /tmp/妙记导出.docx \
+  --title "本期标题" --guest "嘉宾名" \
+  --provider openai --base /opt/gzh-cases
+```
+
+- `--transcript` 支持 `.docx/.docm/.srt/.vtt/.md/.txt/.json`；`.doc` 需另存 `.docx`。
+- 默认跑 Chrome 三档渲染；`--no-render` 只用于调试（会按门禁判 INCOMPLETE → blocked）。
+- 成功产物：`导入片段.html`（图片 base64 内联）、`_渲染_390.png`、`封面_*.jpg`、
+  `图片/fig_0N.jpg`、`图源_*.md`、`_质检报告.md`、`导入包_*.zip`、`导入说明.md`。
+- 退出码：`0` 到 awaiting_publish；`3` blocked/超时；`2` 配置错误。
+- 发布仍人工：`awaiting_publish` 是唯一保留的闸门（`auto_approve.publish` 不存在）。
 
 ## 一次投递：链接 + 转写稿放一起
 

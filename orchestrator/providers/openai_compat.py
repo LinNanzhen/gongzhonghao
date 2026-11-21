@@ -27,6 +27,7 @@ import os
 import socket
 import time
 import urllib.error
+import uuid
 import urllib.request
 
 from .base import Provider, ProviderError
@@ -68,6 +69,8 @@ class OpenAICompatProvider(Provider):
         self.max_output = int(max_output or os.environ.get("GZH_LLM_MAX_OUTPUT") or 32000)
         # T5a：成本记账。不改 complete() 签名（9 个调用点不用动），失败/成功都只
         # 更新实例属性；字段缺失如实标 None，不假装 0。
+        # OpenCode Go 要求客户端带稳定会话头；其他 provider 忽略即可。
+        self.session_id = uuid.uuid4().hex
         self.last_usage: dict[str, int | None] | None = None
         self.usage_total: dict[str, int] = {
             "input": 0, "output": 0, "total": 0, "calls": 0,
@@ -106,6 +109,16 @@ class OpenAICompatProvider(Provider):
                 budget = min(budget * 2, self.max_output)
 
     # ------------------------------------------------------------ 内部
+    def _headers(self) -> dict[str, str]:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": os.environ.get("GZH_LLM_USER_AGENT", "gzh-pipeline/1.0"),
+        }
+        if "opencode.ai" in self.base_url:
+            headers["x-opencode-session"] = self.session_id
+        return headers
+
     def _record_usage(self, usage: object) -> None:
         """记一次成功调用的 token 用量（T5a）。
 
@@ -143,8 +156,7 @@ class OpenAICompatProvider(Provider):
     def _once(self, url: str, body: bytes, task: str) -> str:
         req = urllib.request.Request(
             url, data=body, method="POST",
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {self.api_key}"},
+            headers=self._headers(),
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:

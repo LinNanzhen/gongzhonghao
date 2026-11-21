@@ -22,12 +22,12 @@ class TestTransitions(unittest.TestCase):
     def test_happy_path(self):
         r = Run(run_id="x")
         for to in ["triaged", "transcribed", "ledgered", "researched", "drafted",
-                   "critiqued", "composed", "qc_passed", "awaiting_publish",
+                   "critiqued", "illustrated", "composed", "qc_passed", "awaiting_publish",
                    "published", "archived"]:
             r.advance(to, "test")
         self.assertEqual(r.stage, "archived")
         self.assertEqual(r.status, "done")
-        self.assertEqual(len(r.history), 11)
+        self.assertEqual(len(r.history), 12)
 
     def test_illegal_forward(self):
         r = Run(run_id="x")

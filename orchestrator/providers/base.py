@@ -7,6 +7,7 @@ agent 只依赖这个接口，不依赖具体厂商。换模型 = 新增一个 P
 """
 from __future__ import annotations
 
+import os
 from typing import Protocol, runtime_checkable
 
 
@@ -57,5 +58,14 @@ def get_provider(name: str = "stub", **kwargs) -> Provider:
     from .openai_compat import OpenAICompatProvider
     allowed = ("base_url", "api_key", "model", "timeout", "max_retries", "backoff")
     picked = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+    # 长文生成（writer 一次 5k 字）常有 >90s 无数据；读超时可用环境变量放宽
+    try:
+        picked.setdefault("timeout", float(os.environ.get("GZH_LLM_TIMEOUT", "300")))
+    except ValueError:
+        picked.setdefault("timeout", 300.0)
+    try:
+        picked.setdefault("max_retries", int(os.environ.get("GZH_LLM_MAX_RETRIES", "2")))
+    except ValueError:
+        picked.setdefault("max_retries", 2)
     picked.setdefault("preset", raw)   # 让 deepseek/kimi/qwen 各自匹配端点
     return OpenAICompatProvider(**picked)

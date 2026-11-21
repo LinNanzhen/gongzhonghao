@@ -61,6 +61,10 @@ class Composer(Agent):
                "--md", str(draft),
                "--name", name,
                "--outdir", str(ctx.case_dir)]
+        # SOP v10：writer 产出的简介卡经 --card 原样注入（导语后、章节 01 前）
+        card = ctx.artifact_path("card")
+        if card and card.exists():
+            cmd += ["--card", str(card)]
         if not ctx.render:
             cmd.append("--skip-render")
 
