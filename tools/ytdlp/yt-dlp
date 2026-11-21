@@ -1,0 +1,20 @@
+#!/bin/sh
+# yt-dlp 入口：优先 $YTDLP_BIN，其次同目录 venv，最后 PATH
+#   - 有 ./bili-cookies.txt 就自动带上（大会员清晰度 / 绕 B站 412）；关闭：YTDLP_NO_COOKIES=1
+#   - 自签证书代理环境统一带 --no-check-certificates
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -n "${YTDLP_BIN:-}" ]; then
+  BIN=$YTDLP_BIN
+elif [ -x "$DIR/venv/bin/yt-dlp" ]; then
+  BIN=$DIR/venv/bin/yt-dlp
+else
+  BIN=yt-dlp
+fi
+CK="$DIR/bili-cookies.txt"
+case " $* " in
+  *" --cookies"*) exec "$BIN" --no-check-certificates "$@" ;;
+esac
+if [ -f "$CK" ] && [ "${YTDLP_NO_COOKIES:-0}" != "1" ]; then
+  exec "$BIN" --no-check-certificates --cookies "$CK" "$@"
+fi
+exec "$BIN" --no-check-certificates "$@"

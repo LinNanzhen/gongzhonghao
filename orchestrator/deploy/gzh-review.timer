@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly gzh review (Sunday 09:00 Asia/Shanghai)
+
+[Timer]
+OnCalendar=Sun *-*-* 09:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

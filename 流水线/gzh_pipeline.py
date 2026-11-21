@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-公众号一键流水线 v1.0（对应 SOP v8）
+公众号一键流水线 v1.1（对应 SOP v10：新增对话块渲染）
 ====================================
 输入：Markdown 人味版正文（或 HTML 正文片段）＋ 元信息
 输出：
@@ -12,6 +12,12 @@
 
 流程：解析正文 → 组装双 HTML → 质检门禁 → Chrome headless 三档渲染验收 → 报告
 依赖：仅 Python 3 标准库；渲染验收需要本机 Chrome（自动探测路径）。
+
+判定契约（T1，机器可读行 `- 判定码：`）：
+  PASS        退出码 0  质检门禁全过，且三档渲染验收真的跑过
+  FAIL        退出码 1  质检门禁有 FAIL，或任一 viewport 渲染验收失败
+  INCOMPLETE  退出码 3  渲染验收没跑（--skip-render / 无 Chrome / 无任何 viewport 结果）
+              —— 未完成 ≠ 通过，不得作为放行依据；补跑渲染后重生成报告
 
 用法示例：
   python3 gzh_pipeline.py --md 布林约尔松AI就业观_人味版.md \\
@@ -25,16 +31,38 @@
 """
 
 import argparse
+import base64
 import html
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.request
 from pathlib import Path
+
+# ---------------------------------------------------------------- 判定契约
+# 判定值单一来源：orchestrator/verdict.py（与 gatekeeper 共用，T1c）。
+# 本脚本也可能被单独拷出去跑，所以 import 失败时就地兜底，不让工具直接挂掉。
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+try:  # pragma: no cover - 兜底分支只在脱离仓库单跑时触发
+    from orchestrator.verdict import FAIL, INCOMPLETE, PASS
+except ImportError:  # pragma: no cover
+    PASS, FAIL, INCOMPLETE = "PASS", "FAIL", "INCOMPLETE"
+
+# 总判定（人类可读）与退出码：0=通过，1=未通过（质检门禁 FAIL），3=未完成。
+TOTAL_LABEL = {
+    PASS: "**通过**",
+    FAIL: "**未通过（需修正）**",
+    INCOMPLETE: "**未完成（渲染验收未执行）**",
+}
+EXIT_CODE = {PASS: 0, FAIL: 1, INCOMPLETE: 3}
+
 
 # ---------------------------------------------------------------- 视觉参数
 VISUAL = {
@@ -48,6 +76,10 @@ VISUAL = {
     "quote_cn": "margin:0 0 6px;font-size:16px;line-height:1.8;color:#333333;font-weight:600;",
     "quote_en": "margin:0;font-size:14px;line-height:1.8;color:#8a857e;font-style:italic;",
     "quote_src": "margin:10px 0 0;font-size:13px;line-height:1.7;color:#999999;",
+    # 对话块（SOP v10）：说话人缩写品牌金、译文正文色不加粗、英文灰斜体
+    "quote_speaker": "color:#9a7841;font-weight:700;",
+    "quote_dialogue_cn": "margin:0 0 4px;font-size:16px;line-height:1.8;color:#333333;",
+    "quote_dialogue_en": "margin:0 0 8px;font-size:14px;line-height:1.8;color:#8a857e;font-style:italic;",
     "img_block": "margin:26px 0;",
     "img": "display:block;width:100%;height:auto;margin:0;",
     "caption": "margin:8px 0 0;font-size:13px;line-height:1.7;color:#666666;",
@@ -114,6 +146,19 @@ def find_chrome():
     return None
 
 
+def chrome_sandbox_args():
+    """headless Chrome 的启动参数补丁，返回 (参数列表, profile 目录)。
+
+    受限环境（DSH 文件沙箱 / CI 容器）里 Chrome 直接起 headless 会报
+    `Failed to create a unique user data directory for headless`，
+    随后 `--dump-dom` 退出 0 但输出为空 → 渲染验收永远"未捕获测量结果"。
+    显式给每个调用一个独立 profile 并关闭 Chrome 自带沙箱后即可正常输出。
+    调用方负责在 finally 里 shutil.rmtree 掉 profile 目录（不并发共用、不锁）。
+    """
+    profile = tempfile.mkdtemp(prefix="gzh-chrome-")
+    return ["--no-sandbox", f"--user-data-dir={profile}"], profile
+
+
 def p(text, style=VISUAL["p"]):
     return f'<p style="{style}">{text}</p>'
 
@@ -129,9 +174,44 @@ def inline(text):
     return text
 
 
+# 对话说话人（SOP v10）：行首「大写姓名缩写＋冒号」，如 IS： / DP：
+SPEAKER_RE = re.compile(r"^([A-Z]{1,4})[：:]\s*(.*)$")
+
+
+def speaker_inline(text):
+    """对话行：姓名缩写渲染为品牌金说话人，其余按正文；非对话行原样走 inline。"""
+    m = SPEAKER_RE.match(text)
+    if not m:
+        return inline(text)
+    return f'<strong style="{VISUAL["quote_speaker"]}">{esc(m.group(1))}：</strong>{inline(m.group(2))}'
+
+
 # ---------------------------------------------------------------- md 解析
-def parse_md(md_text, card_html=None, series="", episode="", prev=""):
-    """把 Markdown 人味版正文解析为 BODY_HTML。"""
+def _embed_local_image(url, md_dir):
+    """本地相对路径图片 → data URI（导入片段必须自包含，微信编辑器不认本地路径）。
+
+    只有 http(s):// 与 data: 原样保留；其余按 md 所在目录解析，文件存在才内联，
+    不存在则原样返回（交给质检「图片链接合规」报 FAIL，不静默吞掉）。
+    """
+    if url.startswith(("http://", "https://", "data:")):
+        return url
+    if md_dir is None:
+        return url
+    cand = Path(md_dir) / url
+    if not cand.exists():
+        return url
+    suffix = cand.suffix.lower().lstrip(".")
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp",
+            "gif": "gif"}.get(suffix, "jpeg")
+    b64 = base64.b64encode(cand.read_bytes()).decode("ascii")
+    return f"data:image/{mime};base64,{b64}"
+
+
+def parse_md(md_text, card_html=None, series="", episode="", prev="", md_dir=None):
+    """把 Markdown 人味版正文解析为 BODY_HTML。
+
+    md_dir：正文 md 所在目录；相对路径图片会内联成 data URI，保证导入片段自包含。
+    """
     lines = md_text.split("\n")
     body = []
     brand = ""
@@ -196,8 +276,12 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
                         f'<section style="{VISUAL["section_top"]}"><p style="{VISUAL["src_title"]}">{esc(title)}</p>'
                     )
                     i += 1
+                    # 标题与条目之间允许空行（标准 md 写法）；逐条渲染，去列表符
+                    while i < n and not lines[i].strip():
+                        i += 1
                     while i < n and lines[i].strip() and not lines[i].startswith("## "):
-                        body.append(p(inline(lines[i].strip()), VISUAL["src_line"]))
+                        src = re.sub(r"^[-*]\s+", "", lines[i].strip())
+                        body.append(p(inline(src), VISUAL["src_line"]))
                         i += 1
                     body.append("</section>")
                     continue
@@ -216,9 +300,11 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
             i += 1
             continue
 
-        # 引用块 / 导读条（连续 > 行）
+        # 引用块 / 导读条 / 对话块（连续 > 行）
         #   普通引用：> 文本
-        #   中英对照导读条：> 中文观点  +  > EN|英文原话（可多行，EN 前缀行渲染为灰色斜体）
+        #   中英对照导读条：> 中文观点  +  > EN|英文原话（EN 前缀行渲染为灰色斜体）
+        #   对话块（SOP v10）：> IS：中文译文  +  > EN|English original
+        #     行首「大写缩写＋冒号」识别为说话人；问答可同块，按行序交替渲染
         if line.startswith(">"):
             quotes = []
             while i < n and lines[i].strip().startswith(">"):
@@ -227,14 +313,32 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
                     quotes.append(q)
                 i += 1
             has_en = any(re.match(r"^EN[|｜:：]", q) for q in quotes)
-            if has_en:
+
+            def is_src(q):
+                return q.startswith("——") or q.startswith("—") or (q.startswith("- ") and "：" not in q)
+
+            dialogue = any(SPEAKER_RE.match(q) for q in quotes
+                           if not re.match(r"^EN[|｜:：]", q) and not is_src(q))
+            if has_en and dialogue:
+                # 对话块：说话人金色、译文不加粗、英文灰斜体，逐行交替
+                block = [f'<section style="{VISUAL["quote"]}">']
+                for q in quotes:
+                    m_en = re.match(r"^EN[|｜:：]\s*", q)
+                    if m_en:
+                        block.append(p(inline(q[m_en.end():]), VISUAL["quote_dialogue_en"]))
+                    elif is_src(q):
+                        block.append(p(inline(q), VISUAL["quote_src"]))
+                    else:
+                        block.append(p(speaker_inline(q), VISUAL["quote_dialogue_cn"]))
+                block.append("</section>")
+            elif has_en:
                 # 导读条：中英对照
                 block = [f'<section style="{VISUAL["quote"]}">']
                 cn_lines, en_lines, src_lines = [], [], []
                 for q in quotes:
                     if re.match(r"^EN[|｜:：]", q):
                         en_lines.append(re.sub(r"^EN[|｜:：]\s*", "", q))
-                    elif q.startswith("——") or q.startswith("—") or (q.startswith("- ") and "：" not in q):
+                    elif is_src(q):
                         src_lines.append(q)
                     else:
                         cn_lines.append(q)
@@ -249,10 +353,10 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
                 # 普通引用块
                 block = [f'<section style="{VISUAL["quote"]}">']
                 for j, q in enumerate(quotes):
-                    if q.startswith("——") or q.startswith("—") or (q.startswith("- ") and "：" not in q):
+                    if is_src(q):
                         block.append(p(inline(q), VISUAL["quote_src"]))
                     else:
-                        block.append(p(inline(q)))
+                        block.append(p(speaker_inline(q)))
                 block.append("</section>")
             body.append("\n".join(block))
             continue
@@ -261,7 +365,7 @@ def parse_md(md_text, card_html=None, series="", episode="", prev=""):
         m_img = re.match(r"^!\[(.*?)\]\((.*?)\)\s*$", line)
         if m_img:
             cap = m_img.group(1).strip()
-            url = m_img.group(2).strip()
+            url = _embed_local_image(m_img.group(2).strip(), md_dir)
             alt = esc(cap) if cap else "配图"
             block = [f'<section style="{VISUAL["img_block"]}">']
             block.append(f'<img src="{esc(url)}" style="{VISUAL["img"]}" alt="{alt}">')
@@ -411,6 +515,27 @@ def qa_links(body_html, timeout=6):
 
 
 # ---------------------------------------------------------------- 渲染验收
+
+def viewport_shell(width: int) -> str:
+    """固定宽度的预览容器：等价于 build_html 里的 body_margin，但宽度=视口宽。
+
+    为什么必须固定宽度：macOS 的 headless Chrome（当前 2026 版）`--window-size` 的
+    布局最小宽度是 500px，而 `--screenshot` 仍按 `--window-size` 输出 375/390/430 宽
+    的图——直接截会**裁掉右侧 110px**（正文被切断，且此前"跳过渲染"把这个问题完全
+    掩盖了）。把内容装进固定宽度、左对齐的容器，截图前 N px 就是真实手机宽度下的布局。
+
+    `text-spacing-trim:space-all`：Chrome 123+ 默认裁剪中日文全角标点间距，会让行尾
+    标点在 scrollWidth 上多算约 4px，误报横向溢出；微信 WebView 无此特性，故关掉，
+    使"预览图 + 溢出判定"都与微信一致。
+    """
+    return (
+        f"width:{width}px;box-sizing:border-box;margin:0;padding:20px;"
+        "background:#ffffff;color:#333333;"
+        "font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;"
+        "word-wrap:break-word;overflow-wrap:break-word;text-spacing-trim:space-all;"
+    )
+
+
 RENDER_MEASURE_JS = """
 <script>
 function gzhDone(){
@@ -452,24 +577,30 @@ window.addEventListener('load', function(){
 
 def render_measure(chrome, body_html, viewport, timeout_s=60):
     """返回 dict：vp_width, vp_scroll, page_h, overflow, img_issues"""
+    # text-spacing-trim:space-all —— 这里是在给「微信渲染器」量尺寸，不是给 Chrome 量。
+    # Chrome 123+ 默认对中日文全角标点做间距裁剪（text-spacing-trim:normal），会让行尾
+    # 全角标点（「」（）等）在 scrollWidth 上多算约 4px，在 375/390 档误报"横向溢出"；
+    # 微信 WebView 用的是没有该特性的旧内核，实际不会溢出。关掉裁剪后测量与微信一致，
+    # 而固定宽元素、不可断长串这类真溢出仍会照常命中（见 verify_p0 / 实际宽元素自测）。
     meas = (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>MEAS</title></head>\n'
-        '<body style="margin:0;"><div id="vp" style="width:%dpx;margin:0 auto;background:#fff;'
-        'word-wrap:break-word;overflow-wrap:break-word;">\n%s\n</div>\n'
+        '<body style="margin:0;background:#ffffff;"><div id="vp" style="%s">\n%s\n</div>\n'
         '<pre id="result" style="position:absolute;left:-9999px;"></pre>\n%s</body></html>'
-    ) % (viewport, body_html, RENDER_MEASURE_JS)
+    ) % (viewport_shell(viewport), body_html, RENDER_MEASURE_JS)
     meas = meas.replace("done()", "gzhDone()")
     tmp = tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8")
     tmp.write(meas)
     tmp.close()
+    sandbox_args, profile = chrome_sandbox_args()
     try:
         r = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--virtual-time-budget=20000",
-             "--dump-dom", "file://" + tmp.name],
+            [chrome, "--headless=new", "--disable-gpu", *sandbox_args,
+             "--virtual-time-budget=20000", "--dump-dom", "file://" + tmp.name],
             capture_output=True, text=True, timeout=timeout_s)
         dom = r.stdout
     finally:
         os.unlink(tmp.name)
+        shutil.rmtree(profile, ignore_errors=True)
     m = re.search(r"RESULT (.*)", dom)
     if not m:
         return {"error": "未捕获测量结果", "dom_head": dom[:200]}
@@ -494,13 +625,14 @@ def render_shot(chrome, body_html, viewport, out_png, scale=1):
     tmp.write(
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width">\n</head>'
-        '<body style="margin:0;"><section style="max-width:680px;margin:0 auto;'
-        f'word-wrap:break-word;overflow-wrap:break-word;">\n{body_html}\n</section></body></html>'
+        '<body style="margin:0;background:#ffffff;">'
+        f'<div style="{viewport_shell(viewport)}">\n{body_html}\n</div></body></html>'
     )
     tmp.close()
+    sandbox_args, profile = chrome_sandbox_args()
     try:
         r = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+            [chrome, "--headless=new", "--disable-gpu", *sandbox_args, "--hide-scrollbars",
              f"--force-device-scale-factor={scale}", f"--window-size={viewport},{h}",
              "--virtual-time-budget=20000", f"--screenshot={out_png}", "file://" + tmp.name],
             capture_output=True, text=True, timeout=60)
@@ -508,11 +640,12 @@ def render_shot(chrome, body_html, viewport, out_png, scale=1):
         return ok, "" if ok else r.stderr[:300]
     finally:
         os.unlink(tmp.name)
+        shutil.rmtree(profile, ignore_errors=True)
 
 
 # ---------------------------------------------------------------- 主流程
 def main():
-    ap = argparse.ArgumentParser(description="公众号一键流水线（SOP v8）")
+    ap = argparse.ArgumentParser(description="公众号一键流水线（SOP v10）")
     ap.add_argument("--md", help="Markdown 人味版正文源文件")
     ap.add_argument("--body-html", help="HTML 正文片段（已含内联样式），与 --md 二选一")
     ap.add_argument("--name", required=True, help="产物名前缀，如 布林约尔松AI就业观_v9")
@@ -567,7 +700,8 @@ def main():
     # 3. 生成 BODY / 双 HTML
     if args.md:
         body_html = parse_md(md_text, card_html=card_html,
-                             series=args.series, episode=args.episode, prev=args.prev)
+                             series=args.series, episode=args.episode, prev=args.prev,
+                             md_dir=md_path.parent)
     else:
         body_html = body_html_raw
     preview_html, import_html = build_html(body_html, title or args.name)
@@ -599,12 +733,21 @@ def main():
             print("[PASS] 全部外链可达")
 
     # 5. 渲染验收
+    # render_state 记录"渲染到底跑没跑成"，它单独决定 INCOMPLETE：
+    #   ok       = 三档都出结果且无 FAIL
+    #   skipped  = --skip-render（只跳过渲染，质检照旧）
+    #   no_chrome= 本机找不到 Chrome（以前只 WARN 然后判通过 → 假通过）
+    #   empty    = 找到 Chrome 但没有任何 viewport 产出结果
+    #   fail     = 有 viewport 测量/截图报错或验收 FAIL
     render_rows = []
+    render_state = "ok"
     chrome = find_chrome()
     if args.skip_render:
+        render_state = "skipped"
         print("\n（已跳过 Chrome 渲染验收）")
     elif not chrome:
-        print("\n[WARN] 未找到 Chrome，跳过渲染验收；可安装 Chrome 后重跑")
+        render_state = "no_chrome"
+        print("\n[WARN] 未找到 Chrome，渲染验收未执行（判定为未完成，不得放行）")
     else:
         print(f"\n—— Chrome 渲染验收（{chrome.split('/')[-1]}）——")
         for vp in VIEWPORTS:
@@ -612,6 +755,7 @@ def main():
             if "error" in m:
                 print(f"[{vp}px] FAIL {m['error']}")
                 all_ok = False
+                render_state = "fail"
                 continue
             shot = outdir / f"{args.name}_渲染_{vp}.png"
             ok, err = render_shot(chrome, body_html, vp, str(shot))
@@ -631,19 +775,33 @@ def main():
                 notes.append("截图失败: " + err[:80])
             if status == "FAIL":
                 all_ok = False
+                render_state = "fail"
             render_rows.append({
                 "viewport": vp, "page_h": m["page_h"], "shot": str(shot), "status": status,
                 "overflow": m["overflow"], "img_issues": m["img_issues"],
                 "shot_ok": ok, "notes": "; ".join(notes),
             })
             print(f"[{status}] {vp}px  页高 {m['page_h']}px  溢出[{m['overflow'][:40]}]  图片[{m['img_issues'][:60]}]  截图{'✓' if ok else '✗'}")
+        if render_state != "fail" and not render_rows:
+            render_state = "empty"
 
-    # 6. 质检报告
+    # 6. 判定：质检门禁 FAIL 优先（确定性的坏），其次才是"渲染没跑完"
+    if not all_ok:
+        verdict = FAIL
+    elif render_state != "ok":
+        verdict = INCOMPLETE
+    else:
+        verdict = PASS
+    print(f"\n—— 判定：{verdict}（退出码 {EXIT_CODE[verdict]}）——")
+
+    # 7. 质检报告
     report_path = outdir / f"{args.name}_质检报告.md"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(f"# 质检报告：{args.name}\n\n")
         f.write(f"- 生成时间：{time.strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"- 总判定：{'**通过**' if all_ok else '**未通过（需修正）**'}\n\n")
+        f.write(f"- 总判定：{TOTAL_LABEL[verdict]}\n")
+        # 机器可读判定码：gatekeeper 只认这一行（纯文本，不加星号）
+        f.write(f"- 判定码：{verdict}\n\n")
         f.write("## 质检门禁\n\n| 检查项 | 结果 | 详情 |\n|---|---|---|\n")
         for name, res, detail in report:
             f.write(f"| {name} | {'✅' if res=='ok' else '⚠️' if res=='warn' else '❌'} | {detail} |\n")
@@ -651,19 +809,29 @@ def main():
             bad = qa_links(body_html)
             f.write(f"| 外链可达性 | {'✅' if not bad else '❌'} | {'全部可达' if not bad else '；'.join(bad)} |\n")
         f.write("\n## 渲染验收\n\n")
-        if not render_rows and not args.skip_render and chrome:
-            f.write("渲染验收失败或未执行。\n")
-        elif args.skip_render:
-            f.write("已跳过（--skip-render）。\n")
+        if render_state == "skipped":
+            f.write("已跳过（--skip-render）。**渲染验收未执行，本报告不能作为放行依据。**\n")
+        elif render_state == "no_chrome":
+            f.write("未执行：本机未找到 Chrome。**渲染验收未执行，本报告不能作为放行依据。**\n")
+        elif render_state == "empty" or not render_rows:
+            f.write("未执行：Chrome 已找到，但没有任何 viewport 产出结果。**渲染验收未完成，不能放行。**\n")
         else:
             f.write("| 视口 | 页高 | 横向溢出 | 图片比例 | 截图 |\n|---|---|---|---|---|\n")
             for r in render_rows:
                 f.write(f"| {r['viewport']}px | {r['page_h']}px | {r['overflow'] or '无'} | {r['img_issues'] or '正常'} | {'✓' if r['shot_ok'] else '✗'} |\n")
             f.write("\n> 溢出 = 元素 scrollWidth 超出容器 clientWidth；图片 = natural 比例与 CSS 显示比例误差 >3% 或未加载。\n")
+        if render_state != "ok":
+            f.write(f"\n> 判定码 {verdict}：渲染验收未完成 ≠ 通过。"
+                    "本地补跑三档渲染（去掉 --skip-render）后重生成报告，再放行。\n")
     print(f"\n✓ 质检报告 {report_path}")
-    print(f"\n总判定：{'通过 ✅' if all_ok else '未通过 ❌ 请按 FAIL 项修正后重跑'}")
+    summary = {
+        PASS: "通过 ✅",
+        FAIL: "未通过 ❌ 请按 FAIL 项修正后重跑",
+        INCOMPLETE: "未完成 ⚠️ 渲染验收未执行，需本地补跑渲染后重生成报告（不得放行）",
+    }[verdict]
+    print(f"\n总判定：{summary}")
 
-    return 0 if all_ok else 1
+    return EXIT_CODE[verdict]
 
 
 if __name__ == "__main__":

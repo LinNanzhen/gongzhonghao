@@ -1,0 +1,17 @@
+[Unit]
+Description=gzh weekly review: list 7-day output, prune old import html
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gzh
+WorkingDirectory=/opt/gongzhonghao
+EnvironmentFile=-/etc/gzh/env
+ExecStart=/usr/bin/python3 -m nightly review --days 7 --clean --keep-days 14
+TimeoutStartSec=600
+Nice=10
+
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true

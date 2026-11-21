@@ -10,7 +10,11 @@
     GZH_LLM_MODEL     默认 deepseek-flash
 
 预算策略：推理模型的 reasoning_content 计入 max_tokens，被占满时自动加倍重试，
-直到 max_output（默认 8192）为止。
+直到 max_output（默认 32000，可用 GZH_LLM_MAX_OUTPUT 覆盖）为止。
+
+为什么默认是 32000：writer 要一次写 2—4 千字正文，而推理模型会先把
+reasoning_content 计进同一份预算；上限卡在 8192 时，正文会在半句处被截断
+（2026-11-09 用 Ilya 访谈实录复现：出稿 2323 字后断在"包括 RL 环境"）。
 
 重试策略（对齐 SOP v9 §07）：
     网络错误 / 429 / 5xx → 指数退避重试（默认 2 次）
@@ -23,6 +27,7 @@ import os
 import socket
 import time
 import urllib.error
+import uuid
 import urllib.request
 
 from .base import Provider, ProviderError
@@ -48,7 +53,7 @@ class OpenAICompatProvider(Provider):
     def __init__(self, *, base_url: str | None = None, api_key: str | None = None,
                  model: str | None = None, preset: str | None = None,
                  timeout: float = 90.0, max_retries: int = 2, backoff: float = 1.0,
-                 max_output: int = 8192):
+                 max_output: int | None = None):
         p_base, p_model = PRESETS.get((preset or "").lower(),
                                       (self.DEFAULT_BASE_URL, self.DEFAULT_MODEL))
         self.base_url = (base_url or os.environ.get("GZH_LLM_BASE_URL") or p_base).rstrip("/")
@@ -60,7 +65,16 @@ class OpenAICompatProvider(Provider):
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff = backoff
-        self.max_output = max_output
+        # 推理模型会把 reasoning 计入同一预算；8192 会把正文截在半句。
+        self.max_output = int(max_output or os.environ.get("GZH_LLM_MAX_OUTPUT") or 32000)
+        # T5a：成本记账。不改 complete() 签名（9 个调用点不用动），失败/成功都只
+        # 更新实例属性；字段缺失如实标 None，不假装 0。
+        # OpenCode Go 要求客户端带稳定会话头；其他 provider 忽略即可。
+        self.session_id = uuid.uuid4().hex
+        self.last_usage: dict[str, int | None] | None = None
+        self.usage_total: dict[str, int] = {
+            "input": 0, "output": 0, "total": 0, "calls": 0,
+        }
 
     # ------------------------------------------------------------ 对外
     def complete(self, *, task: str, system: str, prompt: str,
@@ -95,6 +109,38 @@ class OpenAICompatProvider(Provider):
                 budget = min(budget * 2, self.max_output)
 
     # ------------------------------------------------------------ 内部
+    def _headers(self) -> dict[str, str]:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": os.environ.get("GZH_LLM_USER_AGENT", "gzh-pipeline/1.0"),
+        }
+        if "opencode.ai" in self.base_url:
+            headers["x-opencode-session"] = self.session_id
+        return headers
+
+    def _record_usage(self, usage: object) -> None:
+        """记一次成功调用的 token 用量（T5a）。
+
+        - `last_usage`：本次 input/output/total；供应商没给的字段为 None（如实标注）；
+        - `usage_total`：累计 input/output/total/calls；没回 usage 时 calls 照加、
+          token 不加，`loop.py status` 据此把该 run 标成"未上报"而不是假装 0。
+        """
+        data = usage if isinstance(usage, dict) else {}
+        inp = _as_int(data.get("prompt_tokens", data.get("input_tokens")))
+        out = _as_int(data.get("completion_tokens", data.get("output_tokens")))
+        total = _as_int(data.get("total_tokens"))
+        if total is None and (inp is not None or out is not None):
+            total = (inp or 0) + (out or 0)
+
+        self.last_usage = {"input": inp, "output": out, "total": total}
+        self.usage_total["calls"] += 1
+        if total is None:
+            return
+        for key, value in (("input", inp), ("output", out), ("total", total)):
+            if value is not None:
+                self.usage_total[key] += value
+
     def _with_retry(self, url: str, body: bytes, task: str) -> str:
         last: Exception | None = None
         for attempt in range(self.max_retries + 1):
@@ -110,8 +156,7 @@ class OpenAICompatProvider(Provider):
     def _once(self, url: str, body: bytes, task: str) -> str:
         req = urllib.request.Request(
             url, data=body, method="POST",
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {self.api_key}"},
+            headers=self._headers(),
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -143,6 +188,7 @@ class OpenAICompatProvider(Provider):
             if reasoning and finish == "length":
                 raise _LengthExhausted(f"推理 {len(reasoning)} 字占满预算")
             raise ProviderError(f"{task}：返回空内容（finish_reason={finish}）")
+        self._record_usage(data.get("usage"))
         return content
 
 
@@ -152,6 +198,16 @@ class _Retryable(Exception):
 
 class _LengthExhausted(Exception):
     """内部标记：预算被推理占满，需要加倍。"""
+
+
+def _as_int(value: object) -> int | None:
+    """usage 字段转 int；缺失/非法一律 None（如实标注，不当 0）。"""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _safe_snippet(text: str, limit: int = 200) -> str:

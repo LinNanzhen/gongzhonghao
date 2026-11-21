@@ -1,0 +1,18 @@
+[Unit]
+Description=gzh push candidate card to Feishu (button enabled)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gzh
+WorkingDirectory=/opt/gongzhonghao
+EnvironmentFile=-/etc/gzh/env
+# 只需要发消息（裸 HTTP）；收事件的长连接在 gzh-bot.service
+ExecStart=/usr/bin/python3 -m feishu_bot push
+TimeoutStartSec=120
+Nice=10
+
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true

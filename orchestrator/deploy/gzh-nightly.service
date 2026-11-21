@@ -1,0 +1,18 @@
+[Unit]
+Description=gzh nightly: poll -> score 3 -> transcribe 1 -> v0 draft
+Documentation=file:/opt/gongzhonghao/orchestrator/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gzh
+WorkingDirectory=/opt/gongzhonghao
+EnvironmentFile=-/etc/gzh/env
+ExecStart=/usr/bin/python3 -m nightly run
+TimeoutStartSec=14400
+Nice=10
+
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true

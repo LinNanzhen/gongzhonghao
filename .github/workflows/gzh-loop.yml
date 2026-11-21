@@ -82,7 +82,8 @@ jobs:
           python-version: "3.11"
 
       - name: 单元测试（快，失败即停）
-        run: python3 -m unittest orchestrator.test_state orchestrator.test_provider -q
+        # T1：发现式收集，新增 test_gatekeeper 等也自动覆盖；漏跑测试 = 门禁没修
+        run: python3 -m unittest discover -s orchestrator -p 'test_*.py' -t . -q
 
       - name: 准备 YouTube cookies（可选）
         run: |
@@ -127,7 +128,10 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.scan }}" = "false" ]; then
             SCAN_FLAG=""
           fi
+          # T1a：云端必须真跑三档渲染；不传 --render 会让 composer 补 --skip-render，
+          # 报告只能是 INCOMPLETE，gatekeeper 会 blocked（不再假通过）。
           python3 orchestrator/loop.py tick --max-runs "$MAX_RUNS" --provider "$PROVIDER" $SCAN_FLAG \
+            --render \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: 当前状态

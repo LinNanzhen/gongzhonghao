@@ -25,3 +25,18 @@ venv/
 *.wav
 *.mp3
 *.m4a
+
+# orchestrator 运行期文件（tick 锁 / 闸门通知去重），不进库
+orchestrator/runs/.lock
+orchestrator/runs/.notified.json
+
+# 密钥与运行态（2026-11-21）
+.env
+.env.*
+!.env.example
+*.cookies
+bili-cookies.txt
+.state/
+orchestrator/runs/
+!orchestrator/runs/README.md
+*.log

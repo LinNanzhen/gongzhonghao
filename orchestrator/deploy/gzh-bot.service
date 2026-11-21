@@ -1,0 +1,22 @@
+[Unit]
+Description=gzh Feishu bot (WebSocket long connection: button clicks -> state/choice.json)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gzh
+WorkingDirectory=/opt/gongzhonghao
+EnvironmentFile=-/etc/gzh/env
+# 只有长连接需要 lark-oapi（装在 /opt/gzh-venv），发消息走裸 HTTP
+ExecStart=/opt/gzh-venv/bin/python -m feishu_bot serve
+Restart=always
+RestartSec=10
+TimeoutStopSec=20
+
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

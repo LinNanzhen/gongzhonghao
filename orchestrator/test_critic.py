@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""人味检查的单元测试（依据 模板/人味检查表.md）。"""
+"""人味检查与体检表机器判定的单元测试（依据 模板/人味检查表.md）。"""
 
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.agents.critic import scan_humanize  # noqa: E402
+from orchestrator.agents.base import Context  # noqa: E402
+from orchestrator.agents.critic import Critic, judge_section, scan_humanize  # noqa: E402
+from orchestrator.state import Run  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestHardFails(unittest.TestCase):
@@ -66,6 +71,157 @@ class TestNoFalsePositive(unittest.TestCase):
         """闭环在控制系统语境合法，不应进入硬伤。"""
         fails, _ = scan_humanize("控制器使用闭环反馈调整输出。")
         self.assertEqual(fails, [])
+
+
+class TestSectionJudgement(unittest.TestCase):
+    """T1b：可复述 / 有证据 两列必须是真机器判定，不能恒真。"""
+
+    def test_bold_judgement_title_is_retellable(self):
+        j = judge_section("入门岗位先被重新定价", "**结论：入门岗位先被重新定价。**")
+        self.assertTrue(j["retell"])
+        self.assertFalse(j["evidence"])   # 无时间戳/引用/原话
+
+    def test_topic_word_title_not_retellable(self):
+        j = judge_section("就业现状", "**结论：就业现状很严峻。**")
+        self.assertFalse(j["retell"])
+        self.assertEqual(j["topic_word"], "现状")
+
+    def test_plain_prose_not_retellable(self):
+        j = judge_section("入门岗位先被重新定价", "这一段没有加粗，只是平铺直叙。")
+        self.assertFalse(j["retell"])
+
+    def test_evidence_sources(self):
+        self.assertTrue(judge_section("判断标题", "他讲到 12:34 时停了一下。")["evidence"])
+        self.assertTrue(judge_section("判断标题", "据 [2]，任务被拆成 26 项。")["evidence"])
+        self.assertTrue(judge_section("判断标题", "他说「这句话是受访者原话」。" )["evidence"])
+        self.assertFalse(judge_section("判断标题", "这里全是作者的转述，没有出处。")["evidence"])
+
+    def test_quote_block_not_counted_as_bold_judgement(self):
+        """引文块里的加粗不算作者判断句。"""
+        j = judge_section("入门岗位先被重新定价", "> **受访者原话被加粗了**\n")
+        self.assertFalse(j["retell"])
+
+
+CLEAN_NO_BOLD = """# 测试稿：一篇没有加粗也没有证据的稿子
+
+## 01｜入门岗位先被重新定价
+
+入门岗位先被重新定价，这是一段转述，没有原话也没有时间戳。
+
+## 02｜任务拆解比岗位名更重要
+
+任务拆解比岗位名更重要，同样是转述。
+
+## 03｜学习速度决定议价能力
+
+学习速度决定议价能力，还是转述。
+"""
+
+CLEAN_WITH_BOLD = """# 测试稿：入门岗位先被重新定价
+
+> 他说「入门岗位正在被重新定价，这一点已经很清楚了」。
+
+## 01｜入门岗位先被重新定价
+
+**结论：入门岗位先被重新定价。**
+
+他在 02:15 讲了这个例子。
+
+## 02｜任务拆解比岗位名更重要
+
+**结论：任务拆解比岗位名更重要。**
+
+据 [1]，放射科医生做 26 项任务。
+
+## 03｜学习速度决定议价能力
+
+**结论：学习速度决定议价能力。**
+
+他提到 15:40 的面试片段。
+
+## 来源与说明
+
+除署名缩写的对话原话外，本文的叙述、归纳与判断均为作者观点。
+"""
+
+
+class TestV10Attribution(unittest.TestCase):
+    """SOP v10：逐段标签必须消失，文末归属声明必须在，对话行缺失只提示。"""
+
+    def _run(self, text: str):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        case = Path(tmp.name) / "01_测试嘉宾_案例"
+        case.mkdir()
+        (case / "草稿.md").write_text(text, encoding="utf-8")
+        run = Run(run_id="critic-v10-test", artifacts={"draft": "草稿.md"})
+        ctx = Context(run=run, case_dir=case, orch_dir=ROOT / "orchestrator", provider=None)
+        return Critic().run(ctx)
+
+    def test_legacy_label_reworked(self):
+        result = self._run(CLEAN_WITH_BOLD + "\n本文归纳：这是旧式标签。\n")
+        self.assertEqual(result.status, "rework")
+        self.assertIn("旧式逐段标签", result.reason)
+
+    def test_missing_declaration_reworked(self):
+        text = CLEAN_WITH_BOLD.replace("除署名缩写的对话原话外，本文的叙述、归纳与判断均为作者观点。", "")
+        result = self._run(text)
+        self.assertEqual(result.status, "rework")
+        self.assertIn("归属声明", result.reason)
+
+    def test_dialogue_missing_is_warn_only(self):
+        result = self._run(CLEAN_WITH_BOLD)   # 有声明、无对话行
+        self.assertEqual(result.status, "ok")
+
+
+class TestHealthTable(unittest.TestCase):
+    """T1b 回归：体检报告表格不得再出现「6 节全 ✅」。"""
+
+    def _run(self, text: str):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        case = Path(tmp.name) / "01_测试嘉宾_案例"
+        case.mkdir()
+        (case / "草稿.md").write_text(text, encoding="utf-8")
+        run = Run(run_id="critic-test", artifacts={"draft": "草稿.md"})
+        ctx = Context(run=run, case_dir=case, orch_dir=ROOT / "orchestrator", provider=None)
+        result = Critic().run(ctx)
+        reports = sorted(case.glob("体检报告_*.md"))
+        self.assertEqual(len(reports), 1, "体检报告应生成且只有一份")
+        return result, reports[0].read_text(encoding="utf-8")
+
+    @staticmethod
+    def _cells(report: str, num: str) -> list[str]:
+        for line in report.splitlines():
+            if line.startswith(f"| {num}｜"):
+                return [c.strip() for c in line.strip().strip("|").split("|")]
+        raise AssertionError(f"报告里找不到 {num} 节：\n{report}")
+
+    def test_table_not_always_true(self):
+        _, report = self._run(CLEAN_NO_BOLD)
+        for num in ("01", "02", "03"):
+            cells = self._cells(report, num)
+            self.assertEqual(cells[1], "❌", f"{num} 节无加粗判断句，可复述应为 ❌\n{report}")
+            self.assertEqual(cells[4], "❓", f"{num} 节无证据，有证据应为 ❓\n{report}")
+            self.assertEqual(cells[2], "待人工", "「有对手」不得由机器判 ✅")
+            self.assertEqual(cells[3], "待人工", "「有代价」不得由机器判 ✅")
+            self.assertEqual(cells[5], "需改")
+        # 主线不能写死占位符
+        self.assertNotIn("待人工填写", report)
+        self.assertIn("机器初判", report)
+
+    def test_compliant_draft_scores_machine_columns(self):
+        result, report = self._run(CLEAN_WITH_BOLD)
+        for num in ("01", "02", "03"):
+            cells = self._cells(report, num)
+            self.assertEqual(cells[1], "✅", report)
+            self.assertEqual(cells[4], "✅", report)
+            self.assertEqual(cells[2], "待人工")
+            self.assertEqual(cells[3], "待人工")
+            self.assertEqual(cells[5], "待人工")
+        self.assertEqual(result.status, "ok")
+        self.assertIn("机器初判：具备一句话主线的基础", report)
+        self.assertNotIn("待人工填写", report)
 
 
 if __name__ == "__main__":

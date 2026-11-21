@@ -1,0 +1,12 @@
+[Unit]
+Description=Run gzh nightly pipeline at 02:00 Asia/Shanghai
+
+[Timer]
+# 服务器时区是 CST，OnCalendar 直接用本地时间；02:00 跑完预计 20~40 分钟，
+# 08:30 推送时 last_run.json 已经稳定。
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

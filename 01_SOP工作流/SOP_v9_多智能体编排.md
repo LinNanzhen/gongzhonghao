@@ -1,6 +1,7 @@
 # 人物专访深度报道・多智能体编排 SOP v9
 
-> 更新：2026-11-06。**v9 不修改 v8 的任何内容规则**，只在它外面加一层"谁来做、什么时候做、做完谁验收"。
+> 更新：2026-11-09（P0 加固：判定码三值化、一 tick 一步、发布锁死、闸门通知、成本可见）。
+> **v9 不修改 v8 的任何内容规则**，只在它外面加一层"谁来做、什么时候做、做完谁验收"。
 > v8 管「写得对不对」，v9 管「能不能无人值守地跑、跑歪了谁拦住」。
 > 入口：`人物专访深度报道_标准工作流SOP_v8.md`（内容规则）→ 本文（编排规则）。两者冲突时，**内容判据以 v8 为准，编排判据以 v9 为准**。
 
@@ -64,10 +65,10 @@ v8 是一条**单线程的人工流程**：一个人依次做选题、转写、�
 | 2 | `transcriber` 转写与素材卡 | §03 | 音频/视频/文稿 | `转写/transcript.json`、`素材卡_*.md` | 每段有时间戳；说话者不混；姓名/术语/数字标"待回听" |
 | 3 | `ledger` 台账 | §03 | 素材卡 | `事实台账_*.md` | 九列齐全；**关键人物字段查不到就空着**，不猜 |
 | 4 | `researcher` 研究 | §04 | 台账 + 外部检索 | `研究笔记_*.md` | 覆盖阶段/证据/对照/不确定性/暂定判断 |
-| 5 | `writer` 写稿 | §05 | 台账 + 研究 + 素材卡 | `*_人味版.md` | 章节 01/02 编号；主线一句可复述；最强材料不埋在末节 |
-| 6 | `critic` 观点体检 | §05 | 正文 | `体检报告_*.md` | 四关逐节打分；「可复述」不过即打回 writer |
-| 7 | `composer` 排版 | §07 | 正文 + 人物卡 | 双 HTML + 三档渲染 PNG | 调用 `gzh_pipeline.py`，不允许自己拼 HTML |
-| 8 | `gatekeeper` 门禁 | §09 | 双 HTML + 质检报告 | `_质检报告.md` 判定 | 任一 FAIL → 打回 composer；全过 → `awaiting_publish` |
+| 5 | `writer` 写稿 | §05 | 台账 + 研究 + 素材卡 | `*_人味版_vN.md`（只增不覆盖） | 章节 01/02 编号；主线一句可复述；最强材料不埋在末节 |
+| 6 | `critic` 观点体检 | §05 | 正文 | `体检报告_*.md` | 四关逐节打分：可复述/有证据逐节机器判，有对手/有代价标"待人工"；不过即打回 writer |
+| 7 | `composer` 排版 | §07 | 正文 + 人物卡 | `{嘉宾}_vN_排版预览.html` / `_导入片段.html` + 三档渲染 PNG | 调用 `gzh_pipeline.py`，不允许自己拼 HTML；产物只增不覆盖 |
+| 8 | `gatekeeper` 门禁 | §09 | 双 HTML + 质检报告 | `_质检报告.md` 判定 | 按判定码分派：PASS → `qc_passed`；FAIL → 打回 composer；INCOMPLETE/无判定码 → `blocked`，不得放行 |
 | 9 | `archivist` 复盘 | §10 | 发布稿 + 本地稿 | `发布差异_*.md` | 逐项记录采用/删除/换图及原因；产出规则回写建议 |
 
 **边界纪律**（沿用 v8 §05 的"两轮分离"）：
@@ -100,11 +101,13 @@ new
 | 打回 | 触发者 | 回到 | 必须携带 |
 |---|---|---|---|
 | 选题不成立 | 人工 | `triaged` 前（丢弃或改角度） | 一句"缺什么" |
-| 观点不过关 | `critic` | `drafted` | 哪一节、哪一关、缺什么材料 |
-| 门禁 FAIL | `gatekeeper` | `composed` | 具体门禁项与命中片段 |
+| 观点不过关 | `critic` | `researched`（重跑 writer，旧稿保留为 `_vN`） | 哪一节、哪一关、缺什么材料 |
+| 门禁 FAIL | `gatekeeper` | `critiqued`（重跑 composer，旧排版保留为 `_vN`） | 具体门禁项与命中片段 |
 | 编辑器实测失败 | 人工 | `composed` | 丢失的样式与截图 |
 
 **状态非法转移一律报错退出**，不允许"顺手往前推一步"。状态文件是唯一真相，`state.json` 不存在的 run 视为 `new`。
+
+**一次 tick 默认只推进一个阶段**（`--steps` 默认 1，`--max-runs` 只限本轮 run 数）；失败点因此可定位、重跑可幂等。
 
 ---
 
@@ -132,6 +135,7 @@ new
 | 禁用词高危 | 机器 | `FORBIDDEN_WORDS` | 阻塞 |
 | 禁用语语境词 | 机器提词 + 人判 | `FORBIDDEN_CONTEXT` | 提示，不阻塞 |
 | 三档渲染溢出/图片比例 | 机器 | headless Chrome | 阻塞 |
+| 渲染是否真的跑过（判定码） | 机器 | 判定码 `PASS`/`FAIL`/`INCOMPLETE` | 非 PASS 不得放行：FAIL 打回重排，INCOMPLETE 转 `blocked` |
 | 占位符/本地路径/空 alt | 机器 | 流水线 | 阻塞 |
 | 引文可定位 | **人** | 台账时间戳 ↔ 原视频 | 阻塞发布 |
 | 事实是否已核实 | **人** | 台账核验状态列 | 阻塞发布 |
@@ -154,9 +158,12 @@ new
 | 单阶段异常 | `state.json` 记 `error` + traceback 摘要，run 停在原阶段，下个 tick 重试；累计 3 次转 `blocked` |
 | 网络失败（RSS/检索） | 记 warning，不阻塞本轮其他 run |
 | 打回超过 3 次 | 转 `blocked`，等人工介入（说明是判据问题还是素材问题） |
-| 同一 run 超过 7 天未推进 | 标记 `stale`，进日报提醒 |
+| 坏 `state.json` | 解析失败收集进 `RunStore.broken`：tick 打印 `[warn]` 但退出码 0（不拖垮定时任务），`status` 返回退出码 1；坏文件不影响其他 run |
+| 两个 tick 并发 | tick 先拿 `runs/.lock`（`fcntl.flock` 非阻塞）；拿不到直接跳过并提示，退出码 0（本地与云端不会同时推进同一 run） |
+| 同一 run 超过 7 天未推进 | 标记 `stale`，进日报提醒（**尚未实现**，当前只有 `resume` 可解封；列入 P1 待办） |
+| 闸门通知失败 | 5s 超时后只 `[warn]`，不影响 tick；12h 内同签名不重复推 |
 
-**不自动重试的事**：涉及发布、删除、覆盖用户已确认版本的操作。
+**不自动重试的事**：涉及发布、删除、覆盖用户已确认版本的操作（产物一律另存 `_vN`，旧版保留）。
 
 ---
 
@@ -166,19 +173,25 @@ new
 
 ```
 orchestrator/
-├── loop.py                 # 入口：tick / submit / status / approve
-├── state.py                # 状态机、持久化、非法转移校验
+├── loop.py                 # 入口：tick / submit / status / approve / resume / rewind
+├── state.py                # 状态机、持久化、非法转移校验、UTC、坏 state 收集
+├── verdict.py              # 判定码契约（PASS/FAIL/INCOMPLETE），流水线与 gatekeeper 共用
+├── versions.py             # 产物版本号扫描（next_version）
+├── notify.py               # 闸门通知（飞书 webhook，5s 超时，12h 去重）
 ├── events.py               # inbox 扫描、RSS 扫描、去重
+├── selftest.py             # 端到端自检
+├── verify_p0.py            # P0 独立验收（临时目录跑对抗场景）
 ├── agents/                 # 九类智能体
 ├── providers/              # LLM 适配器（stub 为默认）
 ├── sources.json            # 源列表
 ├── inbox/                  # 手动投递
 └── runs/{run_id}/
-    ├── state.json          # 唯一真相
-    └── events.log          # 追加式审计日志
+    ├── state.json          # 唯一真相（artifacts 存相对 case_dir 路径）
+    └── events.log          # 追加式审计日志（UTC 时间戳）
 ```
 
 案例产物仍写进 `NN_XX_案例/`，编排文件不进案例目录（避免污染交付物）。
+案例内产物版本只增不删：`{嘉宾}_人味版_vN.md`、`{嘉宾}_vN_排版预览.html` 等。
 
 ---
 
@@ -191,17 +204,23 @@ on:
   repository_dispatch: {types: [gzh-inbox]}  # 外部推送
 ```
 
-一次 job = 一次 `tick`：
+一次 job = 一次 `tick`（默认 `--steps 1`，带 `--render` 做三档渲染验收）：
 
 1. checkout 仓库（`gongzhonghao/`）
 2. 恢复 `runs/` 缓存（或直接从仓库读）
-3. `python3 orchestrator/loop.py tick --max-runs 3`
-4. 产物与状态提交回仓库（`[loop] run xxx → drafted`）
-5. 有 `awaiting_*` 或 `blocked` 时开/更新 Issue 提醒人
+3. `python3 orchestrator/loop.py tick --max-runs 3 --render`
+4. 产物与状态提交回仓库（`[loop] run xxx → drafted`）；`events.log` 一律 UTC
+5. 有 `awaiting_*` 或 `blocked` 时推飞书闸门通知（`FEISHU_WEBHOOK`，12h 去重）
+
+**审批入口（T4c，未实测）**：`.github/workflows/gzh-approve.yml` 支持 `workflow_dispatch`
+（run_id/gate 输入）与 Issue 评论 `/approve <run_id> <topic|publish>`（仅 OWNER/MEMBER）。
+回写依赖 `GZH_DISPATCH_TOKEN`（PAT/App token）；`GITHUB_TOKEN` 触发同仓库其他 workflow 有反递归限制。
+**该 workflow 未在真实仓库实测，首次启用必须手动触发验证一次。**
 
 **为什么用 commit 回写而不是 artifact**：状态要能被人直接读、被 diff、被回滚；issue 里点一个标签就是审批。
 
 **安全**：LLM key 存 Actions Secrets；只读源扫描不需要凭据；发布相关动作永远不自动执行。
+**runner 没有 Chrome 时**：流水线判 `INCOMPLETE`（退出码 3），gatekeeper 落 `blocked`——不会把"没渲染"静默判成通过。
 
 ---
 
@@ -211,8 +230,12 @@ on:
 2. **人物卡原样保护**：任何 agent 不得改写用户确认过的卡片 HTML。
 3. **两轮分离**：内容优化与排版优化不合并；`composer` 改字即违规。
 4. **人工闸门不可绕过**：`triaged` 与 `awaiting_publish` 必须有人参与，脚本不得提供 `--force-publish`。
-5. **可追溯**：每个状态转移都写 `events.log`，含 agent 名、时间、产物哈希。
-6. **失败要可见**：宁可停在 `blocked`，不许静默跳过。
+5. **发布永不自动**：`auto_approve.publish` 键已删除；policy 里手工写 `true` 也不生效。
+6. **渲染验收未完成 ≠ 通过**：`--skip-render`/无 Chrome/无渲染产出 → `INCOMPLETE` → `blocked`。
+7. **一次 tick 默认只推一步**：连推必须显式 `--steps N`，避免一次 tick 连跑 6 步掩盖失败点。
+8. **失败要可见**：坏 `state.json` 必须告警（`status` 退出码 1、tick summary 标 broken），不许静默跳过。
+9. **可追溯**：每个状态转移都写 `events.log`（UTC），含 agent 名、时间、产物/用量。
+10. **产物只增不删**：writer/composer 重跑另存 `_vN`，不覆盖上一版。
 
 ---
 
@@ -220,13 +243,15 @@ on:
 
 | # | 事项 | 状态 |
 |---|---|---|
-| 1 | 编排器（事件源 / 状态机 / tick） | ✅ 已实现（`orchestrator/`） |
+| 1 | 编排器（事件源 / 状态机 / tick） | ✅ 已实现（`orchestrator/`）；P0 加固：一步一推进、UTC、坏状态可见、并发锁 |
 | 2 | 九类 agent 桩 + LLM 适配器接口 | ✅ 已实现（`agents/`、`providers/`） |
-| 3 | GitHub Actions workflow | ✅ 已实现（`.github/workflows/gzh-loop.yml`） |
+| 3 | GitHub Actions workflow | ✅ 已实现（`.github/workflows/gzh-loop.yml`，tick 带 `--render`） |
 | 4 | 接真实 LLM（替换 `providers/stub.py`） | 待办：接口已留，只需注册新 Provider |
 | 5 | RSS 源列表填实际频道 | 待办（`sources.json` 留空不报错） |
-| 6 | 发布审批走 Issue 标签 | 待办 |
-| 7 | 用 5 篇历史稿回归编排（v6/v7/v8 当作已知答案） | 待办 |
+| 6 | 发布审批走 Issue 评论/标签 | ⚠️ 已实现（`gzh-approve.yml`），**未在真实仓库实测**；需 `GZH_DISPATCH_TOKEN` |
+| 7 | 用 5 篇历史稿回归编排（v6/v7/v8 当作已知答案） | 待办（P0 只做 16 案例质检与自检回归） |
+| 8 | 闸门通知到飞书 | ✅ 已实现（`notify.py`，12h 去重）；需配 `FEISHU_WEBHOOK` |
+| 9 | 成本按 run 记账 | ✅ 已实现（`usage` + `status` 今日/本周汇总）；真实 provider 的 usage 解析有单测 |
 
 ---
 

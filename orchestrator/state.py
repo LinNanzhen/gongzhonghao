@@ -28,6 +28,7 @@ STAGES = [
     "researched",
     "drafted",
     "critiqued",
+    "illustrated",
     "composed",
     "qc_passed",
     "awaiting_publish",
@@ -43,7 +44,8 @@ ALLOWED: dict[str, set[str]] = {
     "ledgered": {"researched"},
     "researched": {"drafted"},
     "drafted": {"critiqued", "drafted"},          # 打回：critic 不过 → 重写
-    "critiqued": {"composed", "drafted"},         # 打回：内容不过 → 回 writer
+    "critiqued": {"illustrated", "drafted"},      # 打回：内容不过 → 回 writer
+    "illustrated": {"composed", "critiqued"},     # 配图后进排版；配图不合规可回 critic
     "composed": {"qc_passed", "composed"},        # 打回：门禁 FAIL → 重排
     "qc_passed": {"awaiting_publish", "composed"},
     "awaiting_publish": {"published"},            # 只能人工放行
@@ -65,7 +67,8 @@ STAGE_AGENT: dict[str, str] = {
     "ledgered": "researcher",
     "researched": "writer",
     "drafted": "critic",
-    "critiqued": "composer",
+    "critiqued": "illustrator",
+    "illustrated": "composer",
     "composed": "gatekeeper",
     "qc_passed": "gatekeeper",
     "awaiting_publish": "archivist",
@@ -76,7 +79,8 @@ STAGE_AGENT: dict[str, str] = {
 REWIND: dict[str, set[str]] = {
     "drafted": {"researched"},     # critic 不过 → 回 writer 重写
     "critiqued": {"researched"},   # 内容层面不过 → 回 writer
-    "composed": {"critiqued", "researched"},
+    "illustrated": {"critiqued", "researched"},   # 配图后发现问题 → 回 critic/writer
+    "composed": {"illustrated", "critiqued", "researched"},   # 门禁 FAIL → 重排（illustrated 的下一环节是 composer）
     "qc_passed": {"critiqued", "researched"},
     "awaiting_publish": {"researched"},   # 改完提示词，人工要求重写
 }
@@ -90,7 +94,12 @@ class IllegalTransition(RuntimeError):
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    """统一 UTC 时间戳（T2b）。
+
+    历史 events.log 里本地时区（`+08:00`）的旧记录不重写；新记录一律 `+00:00`，
+    这样云端与本地日志可以直接按字符串排序、算耗时。
+    """
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 # ---------------------------------------------------------------- 数据模型
@@ -117,6 +126,9 @@ class Run:
     source: Source = field(default_factory=Source)
     case_dir: str = ""
     artifacts: dict[str, str] = field(default_factory=dict)
+    # T5b：逐 run 的成本记账。键：input/output/total/calls。
+    # 旧 state.json 没有这个字段，读到就是 {}（status 里标"未上报"）。
+    usage: dict[str, Any] = field(default_factory=dict)
     history: list[dict[str, Any]] = field(default_factory=list)
     rework: dict[str, Any] = field(default_factory=lambda: {"count": 0, "last_reason": ""})
     gates: dict[str, bool] = field(default_factory=lambda: {"topic": False, "publish": False})
@@ -136,8 +148,24 @@ class Run:
         src = d.get("source") or {}
         d = {k: v for k, v in d.items() if k != "source"}
         d.setdefault("gates", {"topic": False, "publish": False})
+        d.setdefault("usage", {})          # 旧 state.json 兼容（T5b）
         return cls(source=Source(**{k: src.get(k, "") for k in
                                     ("kind", "url", "title", "channel", "notes", "published_at")}), **d)
+
+    # -------------------------------------------------- 成本
+    def add_usage(self, delta: dict[str, Any]) -> None:
+        """累加 token 用量（T5b）。
+
+        只记账，不动 stage/history——成本累加不是状态转移，不该产生审计事件。
+        非数字/空值忽略，避免供应商返回奇怪 usage 时污染状态。
+        """
+        for key, value in (delta or {}).items():
+            try:
+                inc = int(value)
+            except (TypeError, ValueError):
+                continue
+            if inc:
+                self.usage[key] = int(self.usage.get(key, 0) or 0) + inc
 
     # -------------------------------------------------- 转移
     def can(self, to: str) -> bool:
@@ -210,11 +238,16 @@ class Run:
 
 
 class RunStore:
-    """runs/ 目录的读写。一个 run 一个子目录。"""
+    """runs/ 目录的读写。一个 run 一个子目录。
+
+    `broken`（T2c）：上一次 `all()` 扫描到的坏 state.json（path/error）。
+    坏文件不再被静默吞掉——status 会告警并以退出码 1 结束，tick 只告警不中断。
+    """
 
     def __init__(self, root: Path):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self.broken: list[dict[str, str]] = []
 
     def dir(self, run_id: str) -> Path:
         return self.root / run_id
@@ -235,12 +268,17 @@ class RunStore:
         return Run.from_dict(json.loads(p.read_text(encoding="utf-8")))
 
     def all(self) -> list[Run]:
-        runs = []
+        """列出所有可读的 run；坏 state.json 收集进 `self.broken`，不阻断其他 run。"""
+        self.broken = []
+        runs: list[Run] = []
         for p in sorted(self.root.glob("*/state.json")):
             try:
                 runs.append(Run.from_dict(json.loads(p.read_text(encoding="utf-8"))))
-            except (json.JSONDecodeError, TypeError):
-                continue
+            except (OSError, ValueError, TypeError, AttributeError) as exc:
+                self.broken.append({
+                    "path": str(p),
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
         return runs
 
     def save(self, run: Run, line: str = "") -> None:

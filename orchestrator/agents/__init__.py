@@ -6,6 +6,7 @@ from .archivist import Archivist
 from .composer import Composer
 from .critic import Critic
 from .gatekeeper import Gatekeeper
+from .illustrator import Illustrator
 from .ledger import Ledger
 from .researcher import Researcher
 from .scout import Scout
@@ -19,6 +20,7 @@ AGENTS = {
     "researcher": Researcher(),
     "writer": Writer(),
     "critic": Critic(),
+    "illustrator": Illustrator(),
     "composer": Composer(),
     "gatekeeper": Gatekeeper(),
     "archivist": Archivist(),

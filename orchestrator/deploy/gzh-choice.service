@@ -1,0 +1,20 @@
+[Unit]
+Description=gzh choice callback server (飞书 webhook 卡片按钮 → state/choice.json)
+Documentation=file:/opt/gongzhonghao/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gzh
+WorkingDirectory=/opt/gongzhonghao
+EnvironmentFile=-/etc/gzh/env
+ExecStart=/usr/bin/python3 -m choice_server
+Restart=always
+RestartSec=5
+# 只写一个 json，别的都不碰
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

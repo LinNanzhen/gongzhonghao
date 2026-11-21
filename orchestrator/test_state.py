@@ -4,14 +4,17 @@
 
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator.state import (  # noqa: E402
-    IllegalTransition, Run, Source, normalize_url, run_id_for,
+    IllegalTransition, Run, RunStore, Source, normalize_url, now, run_id_for,
 )
 
 
@@ -19,12 +22,12 @@ class TestTransitions(unittest.TestCase):
     def test_happy_path(self):
         r = Run(run_id="x")
         for to in ["triaged", "transcribed", "ledgered", "researched", "drafted",
-                   "critiqued", "composed", "qc_passed", "awaiting_publish",
+                   "critiqued", "illustrated", "composed", "qc_passed", "awaiting_publish",
                    "published", "archived"]:
             r.advance(to, "test")
         self.assertEqual(r.stage, "archived")
         self.assertEqual(r.status, "done")
-        self.assertEqual(len(r.history), 11)
+        self.assertEqual(len(r.history), 12)
 
     def test_illegal_forward(self):
         r = Run(run_id="x")
@@ -88,6 +91,119 @@ class TestGates(unittest.TestCase):
         r = Run.from_dict({"run_id": "x", "stage": "triaged",
                            "source": {"url": "u"}, "history": [], "rework": {}})
         self.assertEqual(r.gates, {"topic": False, "publish": False})
+
+
+class TestTimeUTC(unittest.TestCase):
+    """T2b：新时间戳一律 UTC。"""
+
+    def test_now_is_utc(self):
+        stamp = now()
+        self.assertTrue(stamp.endswith("+00:00"), stamp)
+        dt = datetime.fromisoformat(stamp)
+        self.assertEqual(dt.utcoffset(), timezone.utc.utcoffset(None))
+
+    def test_events_log_new_line_is_utc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = RunStore(Path(tmp))
+            run = store.create("rid1", Source(title="t"), "case")
+            store.save(run, "advance\ttest")
+            lines = store.log_path("rid1").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(lines[-1].startswith("20"), lines[-1])
+            self.assertIn("+00:00", lines[-1])
+
+    def test_historical_local_line_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = RunStore(Path(tmp))
+            run = store.create("rid2", Source(title="t"), "case")
+            old = "2026-11-06T13:09:09+08:00\tcreate\tlocal"
+            log = store.log_path("rid2")
+            text = log.read_text(encoding="utf-8")
+            log.write_text(old + "\n" + text, encoding="utf-8")
+            store.save(run, "advance\ttest")
+            lines = log.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(lines[0], old, "历史记录不应被重写")
+            self.assertIn("+00:00", lines[-1])
+
+
+class TestUsageField(unittest.TestCase):
+    """T5b：Run.usage 字段与旧 state.json 兼容。"""
+
+    def test_default_empty(self):
+        self.assertEqual(Run(run_id="x").usage, {})
+
+    def test_to_dict_includes_usage(self):
+        r = Run(run_id="x")
+        r.add_usage({"input": 10, "output": 5, "total": 15, "calls": 1})
+        d = r.to_dict()
+        self.assertEqual(d["usage"]["total"], 15)
+
+    def test_from_dict_backfills_usage(self):
+        r = Run.from_dict({"run_id": "x", "stage": "new", "source": {},
+                           "history": [], "rework": {}})
+        self.assertEqual(r.usage, {})
+
+    def test_from_dict_keeps_usage(self):
+        usage = {"input": 100, "output": 20, "total": 120, "calls": 1}
+        r = Run.from_dict({"run_id": "x", "usage": dict(usage)})
+        self.assertEqual(r.usage, usage)
+
+    def test_add_usage_accumulates(self):
+        r = Run(run_id="x")
+        r.add_usage({"input": 10, "output": 5, "total": 15, "calls": 1})
+        r.add_usage({"input": 20, "output": 3, "total": 23, "calls": 1})
+        self.assertEqual(r.usage, {"input": 30, "output": 8, "total": 38, "calls": 2})
+
+    def test_add_usage_ignores_garbage(self):
+        r = Run(run_id="x")
+        r.add_usage({"total": None, "calls": "2", "input": "bad", "extra": 1})
+        self.assertEqual(r.usage, {"calls": 2, "extra": 1})
+
+
+class TestBrokenState(unittest.TestCase):
+    """T2c：坏 state.json 要可见，但不影响其他 run。"""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.store = RunStore(self.root)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write(self, run_id: str, text: str) -> None:
+        d = self.root / run_id
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "state.json").write_text(text, encoding="utf-8")
+
+    def test_all_collects_broken(self):
+        good = self.store.create("good", Source(title="ok"), "case")
+        self.store.save(good)
+        self._write("bad", "{这不是 JSON")
+        runs = self.store.all()
+        self.assertEqual([r.run_id for r in runs], ["good"])
+        self.assertEqual(len(self.store.broken), 1)
+        item = self.store.broken[0]
+        self.assertIn("bad", item["path"])
+        self.assertIn("state.json", item["path"])
+        self.assertTrue(item["error"])
+
+    def test_broken_does_not_affect_get(self):
+        self.store.save(self.store.create("good", Source(title="ok"), "case"))
+        self._write("bad", "[1, 2, 3]")     # 合法 JSON 但不是对象
+        runs = self.store.all()
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(len(self.store.broken), 1)
+        self.assertIsNotNone(self.store.get("good"))
+
+    def test_broken_cleared_after_fix(self):
+        self._write("bad", "not json")
+        self.store.all()
+        self.assertEqual(len(self.store.broken), 1)
+        self._write("bad", json.dumps({"run_id": "bad"}))
+        runs = self.store.all()
+        self.assertEqual(self.store.broken, [])
+        self.assertEqual([r.run_id for r in runs], ["bad"])
 
 
 class TestIds(unittest.TestCase):
